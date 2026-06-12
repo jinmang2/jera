@@ -133,7 +133,9 @@ def _build_embedding(settings: Settings) -> EmbeddingProvider:
     if settings.profile is Profile.LOCAL:
         from jera.adapters.embedding.fastembed_embedding import FastEmbedEmbedding
 
-        return FastEmbedEmbedding()
+        # Default to bge-m3 (multilingual, 1024-dim) when no override is set.
+        model = settings.embedding_model or "BAAI/bge-m3"
+        return FastEmbedEmbedding(model_name=model)
     if settings.profile is Profile.PROD and settings.enable_cloud and settings.openai_api_key:
         from jera.adapters.embedding.openai_embedding import OpenAIEmbedding
 
@@ -169,7 +171,9 @@ def _build_reranker(settings: Settings) -> Reranker:
     if settings.profile is Profile.LOCAL:
         from jera.adapters.ranking.fastembed_reranker import FastEmbedReranker
 
-        return FastEmbedReranker()
+        # Default to bge-reranker-v2-m3 (multilingual); S0 fallback: bge-reranker-base.
+        model = settings.reranker_model or "BAAI/bge-reranker-v2-m3"
+        return FastEmbedReranker(model_name=model)
     if settings.profile is Profile.PROD and settings.enable_cloud and settings.cohere_api_key:
         from jera.adapters.ranking.cohere_reranker import CohereReranker
 
@@ -178,6 +182,18 @@ def _build_reranker(settings: Settings) -> Reranker:
 
 
 def _build_generator(settings: Settings) -> GeneratorLLM:
+    if settings.generator_kind == "tooluse":
+        # Offline-safe: FakeToolUseLLM + CalculatorTool — zero paid calls.
+        # ClaudeToolUseGenerator is wired via generator_kind="tooluse" + cloud extra + key
+        # in script contexts; CI always lands here.
+        from jera.adapters.generator.tool_augmented_generator import ToolAugmentedGenerator
+        from jera.tooluse.llm import FakeToolUseLLM
+        from jera.tooluse.tools import CalculatorTool
+
+        return ToolAugmentedGenerator(
+            llm=FakeToolUseLLM(),
+            tools=[CalculatorTool()],
+        )
     if settings.profile is Profile.PROD and settings.enable_cloud and settings.anthropic_api_key:
         from jera.adapters.generator.claude_generator import ClaudeGenerator
 

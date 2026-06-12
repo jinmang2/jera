@@ -4,15 +4,30 @@
 package is the runnable machinery on top of them.)
 """
 
+from jera.evaluation.computation import (
+    ComputationCaseResult,
+    ComputationEval,
+    ComputationReport,
+)
 from jera.evaluation.dataset_builder import CaseSpec, build_gold_dataset
+from jera.evaluation.gold_builder import ClaudeGoldGenerator, operand_in_chunk
+from jera.evaluation.matrix import MatrixReport, StrategyEntry, run_matrix
 from jera.evaluation.report import CaseResult, EvalReport, ModeReport
 from jera.evaluation.runner import EvalRunner
 
 __all__ = [
     "CaseResult",
     "CaseSpec",
+    "ClaudeGoldGenerator",
+    "ComputationCaseResult",
+    "ComputationEval",
+    "ComputationReport",
     "EvalReport",
     "EvalRunner",
+    "MatrixReport",
     "ModeReport",
+    "StrategyEntry",
     "build_gold_dataset",
+    "operand_in_chunk",
+    "run_matrix",
 ]

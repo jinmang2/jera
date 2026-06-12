@@ -1,0 +1,51 @@
+{
+  "name": "korean_research",
+  "_note": "SCAFFOLD — 3 placeholder cases for CI and unit tests. The full ~20-30-case dataset is produced by running `scripts/build_eval_dataset.py` (requires ANTHROPIC_API_KEY + user-downloaded PDFs per AC3/AC5). CI reads this cached file; never calls Claude.",
+  "cases": [
+    {
+      "case_id": "kr-001",
+      "query": "한국은행이 2023년 경제성장률을 얼마로 전망했는가?",
+      "gold": [
+        {"chunk_id": "placeholder-chunk-001", "relevance": 1.0}
+      ],
+      "kind": "retrieval",
+      "expected_value": null,
+      "tolerance": 0.001,
+      "formula": null,
+      "cited_numbers": [],
+      "source_inst": "한국은행",
+      "source_url": "https://www.bok.or.kr/portal/bbs/P0000559/view.do?nttId=10077468",
+      "license": "공공저작물 자유이용허락 (공공누리 제1유형)"
+    },
+    {
+      "case_id": "kr-002",
+      "query": "KDI가 발표한 2023년 상반기 소비자물가 상승률 전망치는?",
+      "gold": [
+        {"chunk_id": "placeholder-chunk-002", "relevance": 1.0}
+      ],
+      "kind": "table",
+      "expected_value": null,
+      "tolerance": 0.001,
+      "formula": null,
+      "cited_numbers": [],
+      "source_inst": "KDI",
+      "source_url": "https://www.kdi.re.kr/research/reportView?pub_no=17630",
+      "license": "공공저작물 자유이용허락 (공공누리 제1유형)"
+    },
+    {
+      "case_id": "kr-003",
+      "query": "2023년 국내 주식시장 시가총액 합계는 얼마인가? (단위: 조원)",
+      "gold": [
+        {"chunk_id": "placeholder-chunk-003", "relevance": 1.0}
+      ],
+      "kind": "computation",
+      "expected_value": 2150.5,
+      "tolerance": 0.001,
+      "formula": "1980.3 + 170.2",
+      "cited_numbers": [1980.3, 170.2],
+      "source_inst": "자본시장연구원",
+      "source_url": "https://www.kcmi.re.kr/publications/pub_detail_view?syear=2023&zno=1&cno=5698",
+      "license": "출처 표시 후 자유이용 가능"
+    }
+  ]
+}

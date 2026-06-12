@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     # retrieval
     top_k: int = 5
 
+    # local profile model overrides (None → adapter picks its own default)
+    # local dense default: BAAI/bge-m3 (1024-dim multilingual)
+    # S0 fallback: intfloat/multilingual-e5-large
+    embedding_model: str | None = None
+    # local reranker default: BAAI/bge-reranker-v2-m3; S0 fallback: BAAI/bge-reranker-base
+    reranker_model: str | None = None
+
+    # generator back-end: "extractive" (default, offline) | "tooluse" (ToolAugmentedGenerator)
+    generator_kind: str = "extractive"
+
     # cloud (disabled unless explicitly enabled with a key)
     enable_cloud: bool = False
     openai_api_key: str | None = None

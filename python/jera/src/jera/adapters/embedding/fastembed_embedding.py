@@ -11,8 +11,14 @@ from collections.abc import Sequence
 from jera.domain.vectors import DenseVector
 
 # bge-small-en-v1.5 → 384 dims; a strong, light ONNX retrieval encoder.
+# bge-m3             → 1024 dims; multilingual (Korean/EN/…); local profile default.
+# multilingual-e5-large → 1024 dims; S0 fallback if bge-m3 is absent.
 _DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
-_DIMS = {"BAAI/bge-small-en-v1.5": 384}
+_DIMS = {
+    "BAAI/bge-small-en-v1.5": 384,
+    "BAAI/bge-m3": 1024,
+    "intfloat/multilingual-e5-large": 1024,
+}
 
 
 class FastEmbedEmbedding:

@@ -17,3 +17,7 @@ htmlcov/
 .omc/state/
 .omc/logs/
 .omc/notepad.md
+
+# Korean research corpus — PDFs are git-ignored; manifest + eval JSON are committed
+data/corpus/*.pdf
+.omc/project-memory.json
