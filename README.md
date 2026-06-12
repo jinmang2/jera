@@ -56,6 +56,11 @@ curl -s localhost:8000/query -H 'content-type: application/json' \
 
 ## Profiles
 
+**Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic`
+(embedding-breakpoint sentence splitting) · `hierarchical` (RAPTOR-lite: cluster leaves +
+extractive parent summaries linked by `parent_chunk_id`). **Parsing** — `JERA_USE_DOCLING=1`
+prefers Docling (layout/table/OCR) for PDF/HTML over the PyMuPDF fallback (extra: `docling`).
+
 Set `JERA_PROFILE` (default `test`):
 
 | profile | embedding | sparse | vector store | metadata | rerank | generate |

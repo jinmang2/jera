@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from jera.adapters.chunking.heading_aware import HeadingAwareChunker
+from jera.adapters.chunking.hierarchical import HierarchicalChunker
+from jera.adapters.chunking.semantic import SemanticChunker
 from jera.adapters.embedding.hash_embedding import HashEmbedding
 from jera.adapters.generator.extractive_generator import ExtractiveGenerator
 from jera.adapters.metadata_store.sqlite_store import make_sqlite_store
@@ -22,9 +24,11 @@ from jera.domain.ids import stable_id
 from jera.domain.jobs import ProviderConfigSnapshot
 from jera.pipeline.ingest import IngestPipeline
 from jera.pipeline.query import QueryPipeline
+from jera.ports.chunker import Chunker
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
 from jera.ports.metadata_store import MetadataStore
+from jera.ports.parser import DocumentParser
 from jera.ports.reranker import Reranker
 from jera.ports.sparse import SparseVectorProvider
 from jera.ports.vector_store import VectorStore
@@ -45,12 +49,10 @@ class RagSystem:
 def build_system(settings: Settings | None = None) -> RagSystem:
     settings = settings or Settings()
 
-    parsers = ParserRegistry([MarkdownParser(), PyMuPDFParser()])
-    chunker = HeadingAwareChunker(
-        max_tokens=settings.max_tokens, overlap_tokens=settings.overlap_tokens
-    )
+    parsers = _build_parsers(settings)
 
     embedding = _build_embedding(settings)
+    chunker = _build_chunker(settings, embedding)
     sparse = _build_sparse(settings)
     vector_store = _build_vector_store(settings)
     metadata_store = _build_metadata_store(settings)
@@ -101,6 +103,30 @@ def build_system(settings: Settings | None = None) -> RagSystem:
         generator=generator,
         vector_store=vector_store,
     )
+
+
+def _build_parsers(settings: Settings) -> ParserRegistry:
+    # Markdown/plain stay on the light parser; Docling (if enabled) handles PDF/HTML before
+    # the PyMuPDF fallback.
+    parsers: list[DocumentParser] = [MarkdownParser()]
+    if settings.use_docling:
+        from jera.adapters.parsing.docling_parser import DoclingParser
+
+        parsers.append(DoclingParser())
+    parsers.append(PyMuPDFParser())
+    return ParserRegistry(parsers)
+
+
+def _build_chunker(settings: Settings, embedding: EmbeddingProvider) -> Chunker:
+    if settings.chunk_strategy == "semantic":
+        return SemanticChunker(embedding, max_tokens=settings.max_tokens)
+    if settings.chunk_strategy == "hierarchical":
+        return HierarchicalChunker(embedding)
+    if settings.chunk_strategy == "heading_aware":
+        return HeadingAwareChunker(
+            max_tokens=settings.max_tokens, overlap_tokens=settings.overlap_tokens
+        )
+    raise ValueError(f"unknown chunk_strategy {settings.chunk_strategy!r}")
 
 
 def _build_embedding(settings: Settings) -> EmbeddingProvider:

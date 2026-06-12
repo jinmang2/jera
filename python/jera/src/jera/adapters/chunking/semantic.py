@@ -1,93 +1,113 @@
-"""Semantic chunker (candidate strategy).
+"""Semantic chunker: embedding-breakpoint splitting within heading sections.
 
-Merges adjacent elements while their embedding cosine similarity exceeds a threshold, then
-falls back to token windowing. It depends on an EmbeddingProvider, which is the reason it is
-NOT the M1 default (the baseline must run with zero model dependencies). With deterministic
-hash embeddings the *boundaries* are lexical-overlap-driven, not truly semantic — its real
-value appears under the `local` profile (fastembed). The chunking gate compares its output
-SHAPE against the heading-aware baseline on the same fixture; semantic superiority is only
-asserted under `local`.
+For each section, sentences are embedded and split at points where the cosine distance between
+consecutive sentences exceeds a percentile threshold (the LlamaIndex semantic-splitter idea),
+with a hard token cap. Deterministic given the embedding provider, so it is reproducible in
+tests (hash embeddings → lexical boundaries) and genuinely semantic under `local` (fastembed).
 """
 
 from __future__ import annotations
 
 import math
 
-from jera.adapters.chunking.heading_aware import HeadingAwareChunker
+from jera.adapters.chunking.sections import Section, group_sections
+from jera.adapters.chunking.sentences import split_sentences_with_offsets
+from jera.adapters.chunking.tokenizer import count_tokens
 from jera.domain.chunk import Chunk
 from jera.domain.document import ParsedDocument
 from jera.domain.ids import stable_id
+from jera.domain.vectors import DenseVector
 from jera.ports.embedding import EmbeddingProvider
 
 
 class SemanticChunker:
     strategy = "semantic"
-    version = "0.1.0"
+    version = "2.0.0"
 
     def __init__(
         self,
         embedding: EmbeddingProvider,
-        threshold: float = 0.55,
+        *,
+        breakpoint_percentile: float = 90.0,
         max_tokens: int = 180,
     ) -> None:
+        if not 0 < breakpoint_percentile < 100:
+            raise ValueError("breakpoint_percentile must be in (0, 100)")
         self._embedding = embedding
-        self._threshold = threshold
-        self._baseline = HeadingAwareChunker(max_tokens=max_tokens, overlap_tokens=0)
+        self._percentile = breakpoint_percentile
+        self._max_tokens = max_tokens
 
     def chunk(self, document: ParsedDocument) -> list[Chunk]:
-        # Start from heading-aware blocks, then re-key chunk ids/strategy for this strategy.
-        base = self._baseline.chunk(document)
-        if len(base) <= 1:
-            return [self._retag(c, idx) for idx, c in enumerate(base)]
+        chunks: list[Chunk] = []
+        for section in group_sections(document.elements):
+            chunks.extend(self._chunk_section(document, section))
+        return chunks
 
-        vectors = self._embedding.embed([c.text for c in base])
-        merged: list[Chunk] = []
-        buffer = base[0]
-        buf_vec = vectors[0]
-        for chunk, vec in zip(base[1:], vectors[1:], strict=True):
-            if (
-                chunk.section_path == buffer.section_path
-                and _cosine(buf_vec, vec) >= self._threshold
-            ):
-                buffer = _join(buffer, chunk)
-                buf_vec = _mean(buf_vec, vec)
+    def _chunk_section(self, document: ParsedDocument, section: Section) -> list[Chunk]:
+        sentences = split_sentences_with_offsets(section.text)
+        if not sentences:
+            return []
+        if len(sentences) == 1:
+            return [self._emit(document, section, sentences, 0)]
+
+        vectors = self._embedding.embed([s for s, _, _ in sentences])
+        distances = [1.0 - _cosine(vectors[i], vectors[i + 1]) for i in range(len(vectors) - 1)]
+        threshold = _percentile(distances, self._percentile)
+
+        chunks: list[Chunk] = []
+        start_idx = 0
+        running_tokens = count_tokens(sentences[0][0])
+        for i in range(len(sentences) - 1):
+            next_tokens = count_tokens(sentences[i + 1][0])
+            over_budget = running_tokens + next_tokens > self._max_tokens
+            semantic_break = distances[i] > threshold
+            if over_budget or semantic_break:
+                chunks.append(
+                    self._emit(document, section, sentences[start_idx : i + 1], len(chunks))
+                )
+                start_idx = i + 1
+                running_tokens = next_tokens
             else:
-                merged.append(buffer)
-                buffer = chunk
-                buf_vec = vec
-        merged.append(buffer)
-        return [self._retag(c, idx) for idx, c in enumerate(merged)]
+                running_tokens += next_tokens
+        chunks.append(self._emit(document, section, sentences[start_idx:], len(chunks)))
+        return chunks
 
-    def _retag(self, chunk: Chunk, idx: int) -> Chunk:
-        new_id = stable_id(
-            chunk.document_id,
+    def _emit(
+        self,
+        document: ParsedDocument,
+        section: Section,
+        sentences: list[tuple[str, int, int]],
+        index: int,
+    ) -> Chunk:
+        char_start = sentences[0][1]
+        char_end = sentences[-1][2]
+        text = section.text[char_start:char_end]
+        element_ids, page_span = section.attribute(char_start, char_end)
+        chunk_id = stable_id(
+            document.document_id,
             self.strategy,
             self.version,
-            "/".join(chunk.section_path),
-            str(idx),
+            "/".join(section.section_path),
+            str(index),
+            str(char_start),
         )
-        return chunk.model_copy(
-            update={
-                "chunk_id": new_id,
-                "chunk_strategy": self.strategy,
-                "chunk_version": self.version,
-            }
+        return Chunk(
+            chunk_id=chunk_id,
+            document_id=document.document_id,
+            source_id=document.source_id,
+            text=text,
+            page_span=page_span,
+            section_path=section.section_path,
+            element_ids=element_ids,
+            char_span=(char_start, char_end),
+            token_count=count_tokens(text),
+            chunk_strategy=self.strategy,
+            chunk_version=self.version,
+            parent_chunk_id=None,
         )
 
 
-def _join(a: Chunk, b: Chunk) -> Chunk:
-    return a.model_copy(
-        update={
-            "text": f"{a.text}\n\n{b.text}",
-            "element_ids": a.element_ids + b.element_ids,
-            "char_span": (a.char_span[0], b.char_span[1]),
-            "page_span": a.page_span.merge(b.page_span),
-            "token_count": a.token_count + b.token_count,
-        }
-    )
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
+def _cosine(a: DenseVector, b: DenseVector) -> float:
     dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
@@ -96,5 +116,16 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
-def _mean(a: list[float], b: list[float]) -> list[float]:
-    return [(x + y) / 2 for x, y in zip(a, b, strict=True)]
+def _percentile(values: list[float], pct: float) -> float:
+    """Linear-interpolation percentile (deterministic)."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (pct / 100.0) * (len(ordered) - 1)
+    lo = math.floor(rank)
+    hi = math.ceil(rank)
+    if lo == hi:
+        return ordered[lo]
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (rank - lo)

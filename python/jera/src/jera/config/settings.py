@@ -34,7 +34,11 @@ class Settings(BaseSettings):
     # embedding (hash profile)
     hash_dimensions: int = 256
 
+    # parsing
+    use_docling: bool = False  # prefer Docling for PDF/HTML (extra: docling; heavier, layout/OCR)
+
     # chunking
+    chunk_strategy: str = "heading_aware"  # heading_aware | semantic | hierarchical
     max_tokens: int = 180
     overlap_tokens: int = 40
 
