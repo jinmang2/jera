@@ -36,6 +36,9 @@ class EvalCase(BaseModel):
     formula: str | None = None
     cited_numbers: list[float] = Field(default_factory=list)
 
+    # generation eval — a gold/reference answer enables answer_correctness + answer_relevance
+    reference_answer: str | None = None
+
     # attribution — carried from the corpus manifest into committed JSON
     source_inst: str | None = None
     source_url: str | None = None

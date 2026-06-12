@@ -70,7 +70,7 @@ apps/api/app/             # FastAPI adapter: routers / DI / schemas
 ```bash
 uv sync                        # install the workspace (both packages, editable)
 bash scripts/gates.sh          # ruff + ruff format + mypy --strict + pytest  (171 passed, offline)
-uv run python scripts/eval.py  # demo eval: dense vs sparse vs hybrid metric table
+uv run python scripts/eval.py  # demo eval: retrieval table + RAGAS-lite generation table
 uv run uvicorn app.main:app --reload --app-dir apps/api   # serve the API
 ```
 

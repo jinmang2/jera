@@ -10,10 +10,17 @@ from jera.evaluation.computation import (
     ComputationReport,
 )
 from jera.evaluation.dataset_builder import CaseSpec, build_gold_dataset
+from jera.evaluation.generation_runner import GenerationEvalRunner
 from jera.evaluation.gold_builder import ClaudeGoldGenerator, operand_in_chunk
 from jera.evaluation.matrix import MatrixReport, StrategyEntry, run_matrix
 from jera.evaluation.parser_bench import ParserBenchReport, ParserBenchResult, grade
-from jera.evaluation.report import CaseResult, EvalReport, ModeReport
+from jera.evaluation.report import (
+    CaseResult,
+    EvalReport,
+    GenerationCaseResult,
+    GenerationReport,
+    ModeReport,
+)
 from jera.evaluation.runner import EvalRunner
 
 __all__ = [
@@ -25,6 +32,9 @@ __all__ = [
     "ComputationReport",
     "EvalReport",
     "EvalRunner",
+    "GenerationCaseResult",
+    "GenerationEvalRunner",
+    "GenerationReport",
     "MatrixReport",
     "ModeReport",
     "ParserBenchReport",

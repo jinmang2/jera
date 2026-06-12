@@ -6,6 +6,8 @@ retrieval gate can exercise each, plus ``answer`` for the full E2E path.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from jera.domain.answer import Answer
 from jera.domain.chunk import Chunk
 from jera.domain.retrieval import (
@@ -21,6 +23,19 @@ from jera.ports.metadata_store import MetadataStore
 from jera.ports.reranker import Reranker
 from jera.ports.sparse import SparseVectorProvider
 from jera.ports.vector_store import VectorStore
+
+
+@dataclass(frozen=True)
+class AnsweredQuery:
+    """The full result of the answer path: the answer plus the evidence it was built from.
+
+    ``retrieved_ids`` is the retrieval ranking (pre-rerank, used for context_precision);
+    ``contexts`` are the reranked chunks actually handed to the generator (used for faithfulness).
+    """
+
+    answer: Answer
+    contexts: list[Chunk]
+    retrieved_ids: list[str]
 
 
 class QueryPipeline:
@@ -42,6 +57,11 @@ class QueryPipeline:
         self._reranker = reranker
         self._generator = generator
         self._collection = collection
+
+    @property
+    def embedding(self) -> EmbeddingProvider:
+        """Read-only access to the embedding provider (e.g. for answer-relevance scoring)."""
+        return self._embedding
 
     @staticmethod
     def analyze(text: str) -> str:
@@ -76,19 +96,35 @@ class QueryPipeline:
         fusion: FusionMethod = FusionMethod.RRF,
         rerank_top_k: int | None = None,
     ) -> Answer:
+        return self.answer_with_contexts(
+            query_text, top_k=top_k, mode=mode, fusion=fusion, rerank_top_k=rerank_top_k
+        ).answer
+
+    def answer_with_contexts(
+        self,
+        query_text: str,
+        *,
+        top_k: int = 5,
+        mode: RetrievalMode = RetrievalMode.HYBRID,
+        fusion: FusionMethod = FusionMethod.RRF,
+        rerank_top_k: int | None = None,
+    ) -> AnsweredQuery:
+        """The full answer path, also returning the evidence (for generation evaluation)."""
         query = Query(text=query_text, top_k=top_k, mode=mode, fusion=fusion)
         retrieved = self.retrieve(query)
+        retrieved_ids = [c.chunk_id for c in retrieved.results]
         if not retrieved.results:
             # Defined empty-result behavior: empty answer, no citations, no error.
-            return Answer(query=self.analyze(query_text), text="", citations=[])
+            empty = Answer(query=self.analyze(query_text), text="", citations=[])
+            return AnsweredQuery(answer=empty, contexts=[], retrieved_ids=retrieved_ids)
 
-        retrieved_ids = {c.chunk_id for c in retrieved.results}
+        retrieved_id_set = set(retrieved_ids)
         reranked = self.rerank(query_text, retrieved.results, rerank_top_k or top_k)
 
         # Citation-correctness invariant: only cite chunks that were actually retrieved.
         contexts: list[Chunk] = []
         for sc in reranked:
-            assert sc.chunk_id in retrieved_ids, "rerank introduced a non-retrieved chunk"
+            assert sc.chunk_id in retrieved_id_set, "rerank introduced a non-retrieved chunk"
             if sc.chunk is not None:
                 contexts.append(sc.chunk)
 
@@ -96,7 +132,7 @@ class QueryPipeline:
         valid_ids = {c.chunk_id for c in contexts}
         for citation in answer.citations:
             assert citation.chunk_id in valid_ids, "citation does not resolve to a context chunk"
-        return answer
+        return AnsweredQuery(answer=answer, contexts=contexts, retrieved_ids=retrieved_ids)
 
     def _attach_chunks(self, scored: list[ScoredChunk]) -> list[ScoredChunk]:
         chunks = {c.chunk_id: c for c in self._meta.get_chunks([s.chunk_id for s in scored])}
