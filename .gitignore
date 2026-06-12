@@ -12,3 +12,8 @@ build/
 *.db
 .coverage
 htmlcov/
+
+# OMC runtime state (keep plans, drop session/runtime noise)
+.omc/state/
+.omc/logs/
+.omc/notepad.md
