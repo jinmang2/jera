@@ -18,12 +18,16 @@ from jera.domain import (
     SourceRef,
 )
 from jera.domain.document import MediaType
+from jera.evaluation import CaseSpec, EvalReport, EvalRunner, build_gold_dataset
 from jera.pipeline import IngestPipeline, QueryPipeline
 
 __all__ = [
     "Answer",
+    "CaseSpec",
     "Chunk",
     "Citation",
+    "EvalReport",
+    "EvalRunner",
     "FusionMethod",
     "IngestPipeline",
     "IngestionJob",
@@ -37,5 +41,6 @@ __all__ = [
     "ScoredChunk",
     "Settings",
     "SourceRef",
+    "build_gold_dataset",
     "build_system",
 ]

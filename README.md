@@ -33,8 +33,16 @@ apps/api/app/             # FastAPI adapter: routers / DI / schemas
 ```bash
 uv sync                        # install the workspace (both packages, editable)
 bash scripts/gates.sh          # ruff + mypy + pytest (all acceptance gates)
+uv run python scripts/eval.py  # demo eval: dense vs sparse vs hybrid metric table
 uv run uvicorn app.main:app --reload --app-dir apps/api   # serve the API
 ```
+
+### Evaluation
+
+`jera.evaluation` turns the metric contracts (recall@k / MRR / nDCG / citation-faithfulness)
+into a runnable harness: `build_gold_dataset` labels gold chunks by substring (no rotting id
+lists), and `EvalRunner` scores dense/sparse/hybrid retrieval into an `EvalReport`. The same
+harness measures real model quality under the `local`/`prod` profiles with no code change.
 
 ### API
 
