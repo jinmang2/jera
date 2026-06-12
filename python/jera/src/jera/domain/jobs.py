@@ -45,6 +45,6 @@ class ProviderConfigSnapshot(BaseModel):
     sparse_model_id: str
     reranker_model_id: str
     generator_model_id: str
-    cost_metadata: dict[str, object] = {}  # placeholder for per-provider pricing
+    cost_metadata: dict[str, object] = {}  # per-provider list pricing (see config/pricing.py)
     version: str = "1"
     created_at: datetime = Field(default_factory=_now)

@@ -37,7 +37,10 @@ def test_test_profile_records_config_snapshot_with_identity() -> None:
     assert snap.embedding_model_id == "hash-emb-v1-256"
     assert snap.embedding_dimensions == 256
     assert snap.sparse_model_id == "bm25-local-v1"
-    assert "note" in snap.cost_metadata  # pricing placeholder present
+    # Real structured pricing (no longer a placeholder note): local models recorded as free.
+    assert snap.cost_metadata["currency"] == "USD"
+    sparse_cost = snap.cost_metadata["sparse"]
+    assert isinstance(sparse_cost, dict) and sparse_cost["pricing"] == {"free_local": True}
 
 
 def test_generator_kind_tooluse_builds_tool_augmented_generator() -> None:

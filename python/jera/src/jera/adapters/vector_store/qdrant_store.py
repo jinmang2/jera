@@ -27,7 +27,7 @@ class QdrantVectorStore:
             ) from exc
         self._client = QdrantClient(url=url, api_key=api_key)
 
-    def ensure_collection(self, spec: CollectionSpec) -> None:  # pragma: no cover
+    def ensure_collection(self, spec: CollectionSpec) -> None:
         from qdrant_client import models
 
         distance = (
@@ -41,7 +41,7 @@ class QdrantVectorStore:
             ),
         )
 
-    def upsert(self, collection: str, records: Sequence[VectorRecord]) -> None:  # pragma: no cover
+    def upsert(self, collection: str, records: Sequence[VectorRecord]) -> None:
         from qdrant_client import models
 
         points = []
@@ -62,7 +62,7 @@ class QdrantVectorStore:
             )
         self._client.upsert(collection_name=collection, points=points)
 
-    def search(  # pragma: no cover
+    def search(
         self,
         collection: str,
         *,

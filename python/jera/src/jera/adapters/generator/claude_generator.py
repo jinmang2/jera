@@ -40,7 +40,7 @@ class ClaudeGenerator:
         self.model_id = model
         self._max_tokens = max_tokens
 
-    def generate(self, query: str, contexts: Sequence[Chunk]) -> Answer:  # pragma: no cover
+    def generate(self, query: str, contexts: Sequence[Chunk]) -> Answer:
         context_block = "\n\n".join(
             f"[{i + 1}] (chunk {c.chunk_id}) {c.text}" for i, c in enumerate(contexts)
         )

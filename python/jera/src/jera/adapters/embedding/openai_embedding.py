@@ -41,12 +41,12 @@ class OpenAIEmbedding:
         self.context_limit: int | None = 8192
         self._dim_override = dimensions
 
-    def embed(self, texts: Sequence[str]) -> list[DenseVector]:  # pragma: no cover
+    def embed(self, texts: Sequence[str]) -> list[DenseVector]:
         kwargs: dict[str, object] = {"model": self._model, "input": list(texts)}
         if self._dim_override:
             kwargs["dimensions"] = self._dim_override
         resp = self._client.embeddings.create(**kwargs)
         return [list(d.embedding) for d in resp.data]
 
-    def embed_query(self, text: str) -> DenseVector:  # pragma: no cover
+    def embed_query(self, text: str) -> DenseVector:
         return next(iter(self.embed([text])))

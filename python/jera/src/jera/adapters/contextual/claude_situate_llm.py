@@ -44,7 +44,7 @@ class ClaudeSituateLLM:
         self.model_id = model
         self._max_tokens = max_tokens
 
-    def situate(self, document_text: str, chunk_text: str) -> str:  # pragma: no cover
+    def situate(self, document_text: str, chunk_text: str) -> str:
         # Send the document (cacheable, identical across every chunk of the same document) as
         # its own content block with a cache breakpoint; the chunk block varies per call.
         doc_block = SITUATE_DOC_PREFIX + document_text + SITUATE_DOC_SUFFIX

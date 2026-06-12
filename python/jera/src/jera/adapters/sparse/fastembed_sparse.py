@@ -25,7 +25,7 @@ class FastEmbedSparse:
         self._model = SparseTextEmbedding(model_name=model_name)
         self.model_id = model_name
 
-    def encode(self, texts: Sequence[str]) -> list[SparseVector]:  # pragma: no cover
+    def encode(self, texts: Sequence[str]) -> list[SparseVector]:
         out: list[SparseVector] = []
         for emb in self._model.embed(list(texts)):
             out.append(
@@ -36,5 +36,5 @@ class FastEmbedSparse:
             )
         return out
 
-    def encode_query(self, text: str) -> SparseVector:  # pragma: no cover
+    def encode_query(self, text: str) -> SparseVector:
         return next(iter(self.encode([text])))

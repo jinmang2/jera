@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **235 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **355 tests**
 
 </div>
 
@@ -40,6 +40,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M5a** | Parser/OCR routing | `RoutingPdfParser` (per-page text\|OCR + provenance); **HWPX parser (stdlib)**; parser benchmark harness |
 | **M6** | Contextual retrieval + gen-eval | Anthropic **Contextual Retrieval** (situate chunks → Contextual Embeddings + Contextual BM25; deterministic heuristic in CI, Claude opt-in); **RAGAS-lite** generation metrics (faithfulness / answer-relevance / answer-correctness / context-precision), wired into the eval harness |
 | **M7** | Retrieval & answer quality | **MMR** diversity reranker (λ relevance/diversity); **multi-query retrieval** (rule-based decomposition + **HyDE** opt-in, RRF-fused); generation metrics in the strategy matrix |
+| **M8** | Hardening (no stopgaps) | every opt-in cloud/vendor adapter **verified by SDK-boundary tests** (real request/response logic, no keys); real `ClaudeToolUseGenerator` wired + **`pause_turn`** handled; real per-model **pricing** (no `cost_metadata` placeholder); **genuine offline Korean eval dataset** (real chunks/gold, replacing the scaffold) |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 

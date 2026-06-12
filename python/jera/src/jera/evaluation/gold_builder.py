@@ -219,7 +219,7 @@ class ClaudeGoldGenerator:
             chunks_block=chunks_block,
         )
 
-        resp = self._client.messages.create(  # pragma: no cover
+        resp = self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
             messages=[{"role": "user", "content": prompt}],

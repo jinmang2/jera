@@ -31,7 +31,7 @@ class CohereReranker:
         self._model = model
         self.model_id = model
 
-    def rerank(  # pragma: no cover
+    def rerank(
         self, query: str, candidates: Sequence[ScoredChunk], top_k: int
     ) -> list[ScoredChunk]:
         docs = [c.chunk.text if c.chunk else "" for c in candidates]

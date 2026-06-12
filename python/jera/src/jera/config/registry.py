@@ -19,6 +19,7 @@ from jera.adapters.parsing import MarkdownParser, ParserRegistry, PyMuPDFParser
 from jera.adapters.ranking.identity_reranker import IdentityReranker
 from jera.adapters.sparse.bm25_local import BM25Local
 from jera.adapters.vector_store.in_memory import InMemoryVectorStore
+from jera.config.pricing import snapshot_cost_metadata
 from jera.config.settings import Profile, Settings
 from jera.domain.ids import stable_id
 from jera.domain.jobs import ProviderConfigSnapshot
@@ -96,7 +97,12 @@ def build_system(settings: Settings | None = None) -> RagSystem:
             sparse_model_id=sparse.model_id,
             reranker_model_id=reranker.model_id,
             generator_model_id=generator.model_id,
-            cost_metadata={"note": "placeholder; populate per-provider pricing when wired"},
+            cost_metadata=snapshot_cost_metadata(
+                embedding=embedding.model_id,
+                sparse=sparse.model_id,
+                reranker=reranker.model_id,
+                generator=generator.model_id,
+            ),
         )
     )
     return RagSystem(
@@ -248,17 +254,21 @@ def _build_reranker(settings: Settings, embedding: EmbeddingProvider) -> Reranke
 
 def _build_generator(settings: Settings) -> GeneratorLLM:
     if settings.generator_kind == "tooluse":
-        # Offline-safe: FakeToolUseLLM + CalculatorTool — zero paid calls.
-        # ClaudeToolUseGenerator is wired via generator_kind="tooluse" + cloud extra + key
-        # in script contexts; CI always lands here.
+        # Real tool-use LLM when cloud+key is provided; deterministic FakeToolUseLLM offline.
         from jera.adapters.generator.tool_augmented_generator import ToolAugmentedGenerator
-        from jera.tooluse.llm import FakeToolUseLLM
+        from jera.tooluse.llm import ToolUseLLM
         from jera.tooluse.tools import CalculatorTool
 
-        return ToolAugmentedGenerator(
-            llm=FakeToolUseLLM(),
-            tools=[CalculatorTool()],
-        )
+        llm: ToolUseLLM
+        if settings.enable_cloud and settings.anthropic_api_key:
+            from jera.tooluse.llm import ClaudeToolUseGenerator
+
+            llm = ClaudeToolUseGenerator(api_key=settings.anthropic_api_key, enabled=True)
+        else:
+            from jera.tooluse.llm import FakeToolUseLLM
+
+            llm = FakeToolUseLLM()
+        return ToolAugmentedGenerator(llm=llm, tools=[CalculatorTool()])
     if settings.profile is Profile.PROD and settings.enable_cloud and settings.anthropic_api_key:
         from jera.adapters.generator.claude_generator import ClaudeGenerator
 

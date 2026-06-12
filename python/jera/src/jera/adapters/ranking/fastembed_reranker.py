@@ -20,7 +20,7 @@ class FastEmbedReranker:
         self._model = TextCrossEncoder(model_name=model_name)
         self.model_id = model_name
 
-    def rerank(  # pragma: no cover
+    def rerank(
         self, query: str, candidates: Sequence[ScoredChunk], top_k: int
     ) -> list[ScoredChunk]:
         docs = [c.chunk.text if c.chunk else "" for c in candidates]

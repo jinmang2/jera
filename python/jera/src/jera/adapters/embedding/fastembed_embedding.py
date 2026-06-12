@@ -34,8 +34,8 @@ class FastEmbedEmbedding:
         self.dimensions = _DIMS.get(model_name, 384)
         self.context_limit: int | None = 512
 
-    def embed(self, texts: Sequence[str]) -> list[DenseVector]:  # pragma: no cover
+    def embed(self, texts: Sequence[str]) -> list[DenseVector]:
         return [list(map(float, v)) for v in self._model.embed(list(texts))]
 
-    def embed_query(self, text: str) -> DenseVector:  # pragma: no cover
+    def embed_query(self, text: str) -> DenseVector:
         return next(iter(self.embed([text])))

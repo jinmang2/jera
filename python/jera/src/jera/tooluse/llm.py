@@ -258,30 +258,61 @@ class ClaudeToolUseGenerator:
         self.model_id = model
         self._max_tokens = max_tokens
 
-    def call(  # pragma: no cover
+    #: Maximum internal iterations to resolve consecutive ``pause_turn`` responses before
+    #: raising ``RuntimeError``.  Each iteration re-sends the conversation with the
+    #: accumulated content appended so adaptive thinking can continue.
+    _MAX_PAUSE_ITERATIONS = 8
+
+    def call(
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
     ) -> AssistantTurn:
         """Invoke the Anthropic Messages API and wrap the response as an ``AssistantTurn``.
 
-        .. note:: ``stop_reason == "pause_turn"`` (adaptive thinking on Opus 4.8)
+        ``pause_turn`` handling (adaptive thinking on Opus 4.8)
+        --------------------------------------------------------
+        When extended/adaptive thinking is enabled the model may return
+        ``stop_reason="pause_turn"`` to signal it wants to continue reasoning in a
+        subsequent call.  This method handles that transparently: it appends the
+        partial ``resp.content`` to the *local* copy of ``messages`` and re-invokes
+        ``messages.create`` in a loop until ``stop_reason != "pause_turn"``, then maps
+        the final response as normal.  The outer ``ToolUseRuntime`` loop never sees
+        ``"pause_turn"`` as a stop reason.
 
-            When extended/adaptive thinking is enabled, the model may return
-            ``stop_reason="pause_turn"`` to indicate it wants to continue its
-            reasoning in a subsequent call.  This implementation does **not** yet
-            handle that stop reason — it passes ``"pause_turn"`` through as ``turn.stop``
-            which the runtime will not recognise as ``"end_turn"`` or ``"tool_use"``
-            and will therefore exhaust ``max_rounds``.  Harden before real Opus 4.8 runs
-            with extended thinking: re-send the conversation (with ``turn.raw`` appended)
-            until ``stop_reason != "pause_turn"``, then proceed with the normal loop.
+        The loop is capped at ``_MAX_PAUSE_ITERATIONS`` (default 8) to guard against
+        a runaway model; a ``RuntimeError`` is raised if the cap is reached.
         """
+        # Work on a local copy so repeated ``pause_turn`` appends do not mutate
+        # the caller's list — the runtime owns that list between turns.
+        working_messages = list(messages)
+
         resp = self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
             tools=tools,
-            messages=messages,
+            messages=working_messages,
         )
+
+        for _pause_iter in range(self._MAX_PAUSE_ITERATIONS):
+            if resp.stop_reason != "pause_turn":
+                break
+            # Append the partial content verbatim and re-invoke so the model can
+            # continue its adaptive thinking chain.
+            working_messages.append({"role": "assistant", "content": resp.content})
+            resp = self._client.messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                tools=tools,
+                messages=working_messages,
+            )
+        else:
+            raise RuntimeError(
+                f"ClaudeToolUseGenerator.call: model returned 'pause_turn' for "
+                f"{self._MAX_PAUSE_ITERATIONS} consecutive iterations without resolving. "
+                "Check extended-thinking configuration."
+            )
+
         blocks: list[TextBlock | ToolUseBlock] = []
         for blk in resp.content:
             if blk.type == "text":

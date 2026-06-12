@@ -41,7 +41,7 @@ class ClaudeHypothesisLLM:
         self.model_id = model
         self._max_tokens = max_tokens
 
-    def hypothesize(self, query: str) -> str:  # pragma: no cover
+    def hypothesize(self, query: str) -> str:
         resp = self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
