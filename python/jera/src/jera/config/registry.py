@@ -25,6 +25,7 @@ from jera.domain.jobs import ProviderConfigSnapshot
 from jera.pipeline.ingest import IngestPipeline
 from jera.pipeline.query import QueryPipeline
 from jera.ports.chunker import Chunker
+from jera.ports.contextualizer import Contextualizer
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
 from jera.ports.metadata_store import MetadataStore
@@ -58,6 +59,7 @@ def build_system(settings: Settings | None = None) -> RagSystem:
     metadata_store = _build_metadata_store(settings)
     reranker = _build_reranker(settings)
     generator = _build_generator(settings)
+    contextualizer = _build_contextualizer(settings)
 
     ingest = IngestPipeline(
         parsers=parsers,
@@ -67,6 +69,7 @@ def build_system(settings: Settings | None = None) -> RagSystem:
         vector_store=vector_store,
         metadata_store=metadata_store,
         collection=settings.collection,
+        contextualizer=contextualizer,
     )
     query = QueryPipeline(
         embedding=embedding,
@@ -135,6 +138,29 @@ def _build_chunker(settings: Settings, embedding: EmbeddingProvider) -> Chunker:
             max_tokens=settings.max_tokens, overlap_tokens=settings.overlap_tokens
         )
     raise ValueError(f"unknown chunk_strategy {settings.chunk_strategy!r}")
+
+
+def _build_contextualizer(settings: Settings) -> Contextualizer | None:
+    """Contextual Retrieval is off by default. When enabled, the heuristic adapter is
+    offline/CI-real; the ``llm`` adapter needs a real SituateLLM (cloud, opt-in) and is only
+    constructed when cloud is enabled with an Anthropic key — CI never builds it."""
+    if not settings.use_contextual_retrieval:
+        return None
+    if settings.contextualizer_kind == "heuristic":
+        from jera.adapters.contextual.heuristic_contextualizer import HeuristicContextualizer
+
+        return HeuristicContextualizer()
+    if settings.contextualizer_kind == "llm":
+        if not (settings.enable_cloud and settings.anthropic_api_key):
+            raise RuntimeError(
+                "contextualizer_kind='llm' needs enable_cloud=True + an anthropic_api_key "
+                "(paid). Use contextualizer_kind='heuristic' for the offline path."
+            )
+        from jera.adapters.contextual.claude_situate_llm import ClaudeSituateLLM
+        from jera.adapters.contextual.llm_contextualizer import LlmContextualizer
+
+        return LlmContextualizer(ClaudeSituateLLM(api_key=settings.anthropic_api_key, enabled=True))
+    raise ValueError(f"unknown contextualizer_kind {settings.contextualizer_kind!r}")
 
 
 def _build_embedding(settings: Settings) -> EmbeddingProvider:

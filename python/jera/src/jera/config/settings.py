@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     max_tokens: int = 180
     overlap_tokens: int = 40
 
+    # contextual retrieval (Anthropic, 2024) — situate chunks before embedding/indexing
+    use_contextual_retrieval: bool = False
+    contextualizer_kind: str = "heuristic"  # heuristic (offline) | llm (opt-in, needs cloud)
+
     # retrieval
     top_k: int = 5
 

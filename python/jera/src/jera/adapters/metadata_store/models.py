@@ -40,6 +40,7 @@ class ChunkRow(Base):
     chunk_strategy: Mapped[str] = mapped_column(String(64))
     chunk_version: Mapped[str] = mapped_column(String(32))
     parent_chunk_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True)  # contextual-retrieval prefix
 
 
 class JobRow(Base):

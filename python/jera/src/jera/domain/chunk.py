@@ -28,3 +28,17 @@ class Chunk(BaseModel):
     chunk_strategy: str  # e.g. "heading_aware"
     chunk_version: str  # adapter version that produced this chunk
     parent_chunk_id: str | None = None  # for hierarchical strategies
+    context: str | None = None  # contextual-retrieval situating prefix (Anthropic, 2024)
+
+    @property
+    def embedding_text(self) -> str:
+        """Text used for dense embedding and sparse (BM25) indexing.
+
+        With Contextual Retrieval enabled, the situating ``context`` is prepended so the
+        chunk is findable by queries naming entities it never repeats. ``text`` itself stays
+        the original chunk content — citations and snippets always quote ``text``, never the
+        synthesized context — so provenance (char_span/element_ids) is unaffected.
+        """
+        if self.context:
+            return f"{self.context}\n\n{self.text}"
+        return self.text

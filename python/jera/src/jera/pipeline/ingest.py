@@ -14,6 +14,7 @@ from jera.domain.document import SourceRef
 from jera.domain.ids import stable_id
 from jera.domain.jobs import IngestionJob, JobStatus
 from jera.ports.chunker import Chunker
+from jera.ports.contextualizer import Contextualizer
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.metadata_store import MetadataStore
 from jera.ports.sparse import Fittable, SparseVectorProvider
@@ -31,6 +32,7 @@ class IngestPipeline:
         vector_store: VectorStore,
         metadata_store: MetadataStore,
         collection: str,
+        contextualizer: Contextualizer | None = None,
     ) -> None:
         self._parsers = parsers
         self._chunker = chunker
@@ -39,6 +41,9 @@ class IngestPipeline:
         self._vectors = vector_store
         self._meta = metadata_store
         self._collection = collection
+        # Contextual Retrieval (Anthropic, 2024): when set, each chunk is situated with a
+        # short context that is prepended for embedding/sparse indexing (Chunk.embedding_text).
+        self._contextualizer = contextualizer
 
     def ingest(self, source: SourceRef) -> IngestionJob:
         return self.ingest_many([source])[0]
@@ -69,6 +74,12 @@ class IngestPipeline:
                 document = self._parsers.parse(source)
                 self._meta.save_document(document)
                 chunks = self._chunker.chunk(document)
+                if self._contextualizer is not None and chunks:
+                    contexts = self._contextualizer.contextualize(document, chunks)
+                    chunks = [
+                        c.model_copy(update={"context": ctx}) if ctx else c
+                        for c, ctx in zip(chunks, contexts, strict=True)
+                    ]
                 job = job.model_copy(
                     update={"document_id": document.document_id, "chunk_count": len(chunks)}
                 )
@@ -81,7 +92,7 @@ class IngestPipeline:
 
         # Fit sparse provider once over the whole batch corpus (if it needs fitting).
         if isinstance(self._sparse, Fittable):
-            self._sparse.fit([c.text for c in all_chunks])
+            self._sparse.fit([c.embedding_text for c in all_chunks])
 
         for job, chunks in per_source:
             if job.status is JobStatus.FAILED:
@@ -99,7 +110,10 @@ class IngestPipeline:
         return jobs
 
     def _index_chunks(self, chunks: list[Chunk]) -> None:
-        texts = [c.text for c in chunks]
+        # Index the contextualized text (context + chunk) for both dense and sparse — this is
+        # the Contextual Embeddings + Contextual BM25 of Anthropic's recipe. Without a
+        # contextualizer, embedding_text == text, so indexing is unchanged.
+        texts = [c.embedding_text for c in chunks]
         dense = self._embedding.embed(texts)
         sparse = self._sparse.encode(texts)
         records = [

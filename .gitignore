@@ -21,3 +21,7 @@ htmlcov/
 # Korean research corpus — PDFs are git-ignored; manifest + eval JSON are committed
 data/corpus/*.pdf
 .omc/project-memory.json
+
+# nested OMC runtime state (tools run from subdirs)
+**/.omc/state/
+**/.omc/logs/

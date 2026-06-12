@@ -62,6 +62,7 @@ class SqlMetadataStore:
                         chunk_strategy=c.chunk_strategy,
                         chunk_version=c.chunk_version,
                         parent_chunk_id=c.parent_chunk_id,
+                        context=c.context,
                     )
                 )
             session.commit()
@@ -171,4 +172,5 @@ def _to_chunk(row: ChunkRow) -> Chunk:
         chunk_strategy=row.chunk_strategy,
         chunk_version=row.chunk_version,
         parent_chunk_id=row.parent_chunk_id,
+        context=row.context,
     )
