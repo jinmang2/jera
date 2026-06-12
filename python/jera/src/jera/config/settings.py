@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # parsing
     use_docling: bool = False  # prefer Docling for PDF/HTML (extra: docling; heavier, layout/OCR)
     use_routing_pdf: bool = False  # route PDF pages text|OCR via RoutingPdfParser (before PyMuPDF)
+    use_opendataloader: bool = False  # rich PDF parser (extra: opendataloader; Java 11+)
+    use_camelot: bool = False  # table-focused PDF parser (extra: tables; TABLE elements only)
+    # OCR engine for RoutingPdfParser's OCR route: fake (offline) | tesseract | rapidocr | clova
+    ocr_engine: str = "fake"
+    ocr_lang: str = "kor+eng"
+    clova_invoke_url: str | None = None  # CLOVA OCR endpoint (ocr_engine="clova", paid)
+    clova_secret: str | None = None
 
     # chunking
     chunk_strategy: str = "heading_aware"  # heading_aware | semantic | hierarchical

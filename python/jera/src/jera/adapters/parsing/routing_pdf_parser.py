@@ -41,9 +41,18 @@ class RoutingPdfParser:
     name = "routing-pdf"
     version = "1.0.0"
 
-    def __init__(self, router: PageRouter | None = None, ocr: OCREngine | None = None) -> None:
+    def __init__(
+        self,
+        router: PageRouter | None = None,
+        ocr: OCREngine | None = None,
+        vlm: OCREngine | None = None,
+    ) -> None:
         self._router: PageRouter = router or HeuristicRouter()
         self._ocr: OCREngine = ocr or FakeOCR()
+        # A vision-language engine for the VLM route (also an OCREngine: image -> text). Optional:
+        # the default HeuristicRouter never emits VLM, so this stays None unless a VLM-capable
+        # router + engine are injected together.
+        self._vlm: OCREngine | None = vlm
 
     def supports(self, source: SourceRef) -> bool:
         return source.media_type is MediaType.PDF
@@ -111,10 +120,31 @@ class RoutingPdfParser:
                             )
                         )
                         order += 1
-                else:  # Route.VLM — not available in M5a
-                    raise NotImplementedError(
-                        "VLM route requires an M5b vlm adapter; HeuristicRouter never emits VLM."
-                    )
+                else:  # Route.VLM — delegate to the injected vision-language engine
+                    if self._vlm is None:
+                        raise RuntimeError(
+                            "router emitted VLM but no vlm engine was configured; pass "
+                            "RoutingPdfParser(vlm=<OCREngine>) or use a router that omits VLM."
+                        )
+                    image = page.get_pixmap().tobytes("png")
+                    result = self._vlm.recognize(bytes(image))
+                    body = result.text.strip()
+                    if body:
+                        elements.append(
+                            DocumentElement(
+                                element_id=stable_id(document_id, str(order), "vlm"),
+                                type=ElementType.NARRATIVE_TEXT,
+                                text=body,
+                                page_span=page_span,
+                                order=order,
+                                metadata={
+                                    METADATA_ROUTE: Route.VLM.value,
+                                    METADATA_OCR_ENGINE: result.engine_id,
+                                    METADATA_OCR_CONFIDENCE: result.confidence,
+                                },
+                            )
+                        )
+                        order += 1
         finally:
             doc.close()
 

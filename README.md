@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **355 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **488 tests**
 
 </div>
 
@@ -38,6 +38,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M3** | Chunking + parsing | semantic (embedding-breakpoint) + hierarchical (RAPTOR-lite) chunkers; **real Docling** parser |
 | **M4** | Korean research RAG | computation/table eval cases; **fastembed multilingual** (bge-m3); **tool-use numeric QA** (Program-of-Thoughts, FinQA-style) |
 | **M5a** | Parser/OCR routing | `RoutingPdfParser` (per-page text\|OCR + provenance); **HWPX parser (stdlib)**; parser benchmark harness |
+| **M5b** | Parser/OCR zoo | opt-in adapters — **opendataloader** · **camelot** tables · **pyhwp** (legacy .hwp) · **tesseract/rapidocr/CLOVA** OCR engines; functional **VLM route**; runnable `parser_bench.py` (all SDK-boundary-verified, `requires_extra`) |
 | **M6** | Contextual retrieval + gen-eval | Anthropic **Contextual Retrieval** (situate chunks → Contextual Embeddings + Contextual BM25; deterministic heuristic in CI, Claude opt-in); **RAGAS-lite** generation metrics (faithfulness / answer-relevance / answer-correctness / context-precision), wired into the eval harness |
 | **M7** | Retrieval & answer quality | **MMR** diversity reranker (λ relevance/diversity); **multi-query retrieval** (rule-based decomposition + **HyDE** opt-in, RRF-fused); generation metrics in the strategy matrix |
 | **M8** | Hardening (no stopgaps) | every opt-in cloud/vendor adapter **verified by SDK-boundary tests** (real request/response logic, no keys); real `ClaudeToolUseGenerator` wired + **`pause_turn`** handled; real per-model **pricing** (no `cost_metadata` placeholder); **genuine offline Korean eval dataset** (real chunks/gold, replacing the scaffold) |
@@ -98,7 +99,9 @@ Set via `JERA_*` env vars (default profile = `test`).
 
 - **Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic` · `hierarchical`.
 - **Parsing** — `JERA_USE_DOCLING=1` (layout/table/OCR, `[docling]`) · `JERA_USE_ROUTING_PDF=1`
-  (per-page text\|OCR routing with provenance). HWPX (Hancom) parses with **stdlib only**.
+  (per-page text\|OCR routing with provenance) · `JERA_USE_OPENDATALOADER=1` (`[opendataloader]`,
+  Java 11+) · `JERA_USE_CAMELOT=1` (table extraction, `[tables]`). HWPX parses with **stdlib only**;
+  legacy `.hwp` via `pyhwp` (`[hwp]`). OCR route engine: `JERA_OCR_ENGINE=fake|tesseract|rapidocr|clova`.
 - **Generator** — `JERA_GENERATOR_KIND=tooluse` enables the calculator-tool numeric-QA path.
 - **Contextual retrieval** — `JERA_USE_CONTEXTUAL_RETRIEVAL=1` situates each chunk before
   indexing (Anthropic, 2024); `JERA_CONTEXTUALIZER_KIND` ∈ `heuristic` (title+section, offline)

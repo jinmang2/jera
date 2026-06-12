@@ -44,6 +44,14 @@ module = [
     "openai.*",
     "anthropic.*",
     "psycopg.*",
+    "camelot.*",
+    "pandas.*",
+    "opendataloader_pdf.*",
+    "hwp5.*",
+    "pytesseract.*",
+    "PIL.*",
+    "rapidocr_onnxruntime.*",
+    "requests.*",
 ]
 ignore_missing_imports = true
 

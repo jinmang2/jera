@@ -16,6 +16,7 @@ from jera.adapters.embedding.hash_embedding import HashEmbedding
 from jera.adapters.generator.extractive_generator import ExtractiveGenerator
 from jera.adapters.metadata_store.sqlite_store import make_sqlite_store
 from jera.adapters.parsing import MarkdownParser, ParserRegistry, PyMuPDFParser
+from jera.adapters.parsing.routing import OCREngine
 from jera.adapters.ranking.identity_reranker import IdentityReranker
 from jera.adapters.sparse.bm25_local import BM25Local
 from jera.adapters.vector_store.in_memory import InMemoryVectorStore
@@ -118,23 +119,62 @@ def build_system(settings: Settings | None = None) -> RagSystem:
 
 
 def _build_parsers(settings: Settings) -> ParserRegistry:
-    # Markdown/plain → light parser; HWPX → stdlib HwpxParser (always, zero deps).
-    # For PDF, first-match precedence: RoutingPdfParser (if use_routing_pdf) → Docling (if
-    # use_docling) → PyMuPDF fallback. Both routing flags default off, so default PDF ingestion
-    # is unchanged.
+    # Markdown/plain → light parser; HWPX → stdlib HwpxParser (always, zero deps); legacy .hwp →
+    # PyHwpParser (always registered; activates only for application/x-hwp, needs the `hwp` extra).
+    # For PDF, first-match precedence: RoutingPdfParser (if use_routing_pdf) → OpenDataLoader (if
+    # use_opendataloader) → Docling (if use_docling) → Camelot (if use_camelot; table-only) →
+    # PyMuPDF fallback. All opt-in flags default off, so default PDF ingestion is unchanged.
     from jera.adapters.parsing.hwpx_parser import HwpxParser
+    from jera.adapters.parsing.pyhwp_parser import PyHwpParser
 
-    parsers: list[DocumentParser] = [MarkdownParser(), HwpxParser()]
+    parsers: list[DocumentParser] = [MarkdownParser(), HwpxParser(), PyHwpParser()]
     if settings.use_routing_pdf:
         from jera.adapters.parsing.routing_pdf_parser import RoutingPdfParser
 
-        parsers.append(RoutingPdfParser())
+        parsers.append(RoutingPdfParser(ocr=_build_ocr_engine(settings)))
+    if settings.use_opendataloader:
+        from jera.adapters.parsing.opendataloader_parser import OpenDataLoaderParser
+
+        parsers.append(OpenDataLoaderParser())
     if settings.use_docling:
         from jera.adapters.parsing.docling_parser import DoclingParser
 
         parsers.append(DoclingParser())
+    if settings.use_camelot:
+        # Table-focused: returns only TABLE elements. Opt-in (the user wants table extraction).
+        from jera.adapters.parsing.camelot_parser import CamelotTableParser
+
+        parsers.append(CamelotTableParser())
     parsers.append(PyMuPDFParser())
     return ParserRegistry(parsers)
+
+
+def _build_ocr_engine(settings: Settings) -> OCREngine | None:
+    """OCR engine for RoutingPdfParser's OCR route. ``fake`` (default) → None so the parser uses
+    its deterministic FakeOCR; real engines are opt-in (need the `ocr` extra / a CLOVA key)."""
+    kind = settings.ocr_engine
+    if kind == "fake":
+        return None
+    if kind == "tesseract":
+        from jera.adapters.parsing.ocr import TesseractOCREngine
+
+        return TesseractOCREngine(lang=settings.ocr_lang)
+    if kind == "rapidocr":
+        from jera.adapters.parsing.ocr import RapidOcrOCREngine
+
+        return RapidOcrOCREngine()
+    if kind == "clova":
+        if not (settings.clova_invoke_url and settings.clova_secret):
+            raise RuntimeError(
+                "ocr_engine='clova' needs clova_invoke_url + clova_secret (paid). "
+                "Use ocr_engine='tesseract'/'rapidocr' for local OCR."
+            )
+        from jera.adapters.parsing.ocr import ClovaOCREngine
+
+        return ClovaOCREngine(
+            invoke_url=settings.clova_invoke_url, secret=settings.clova_secret, enabled=True
+        )
+    raise ValueError(f"unknown ocr_engine {kind!r}")
 
 
 def _build_chunker(settings: Settings, embedding: EmbeddingProvider) -> Chunker:
