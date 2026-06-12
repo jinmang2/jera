@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # parsing
     use_docling: bool = False  # prefer Docling for PDF/HTML (extra: docling; heavier, layout/OCR)
+    use_routing_pdf: bool = False  # route PDF pages text|OCR via RoutingPdfParser (before PyMuPDF)
 
     # chunking
     chunk_strategy: str = "heading_aware"  # heading_aware | semantic | hierarchical

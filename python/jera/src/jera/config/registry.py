@@ -106,9 +106,17 @@ def build_system(settings: Settings | None = None) -> RagSystem:
 
 
 def _build_parsers(settings: Settings) -> ParserRegistry:
-    # Markdown/plain stay on the light parser; Docling (if enabled) handles PDF/HTML before
-    # the PyMuPDF fallback.
-    parsers: list[DocumentParser] = [MarkdownParser()]
+    # Markdown/plain → light parser; HWPX → stdlib HwpxParser (always, zero deps).
+    # For PDF, first-match precedence: RoutingPdfParser (if use_routing_pdf) → Docling (if
+    # use_docling) → PyMuPDF fallback. Both routing flags default off, so default PDF ingestion
+    # is unchanged.
+    from jera.adapters.parsing.hwpx_parser import HwpxParser
+
+    parsers: list[DocumentParser] = [MarkdownParser(), HwpxParser()]
+    if settings.use_routing_pdf:
+        from jera.adapters.parsing.routing_pdf_parser import RoutingPdfParser
+
+        parsers.append(RoutingPdfParser())
     if settings.use_docling:
         from jera.adapters.parsing.docling_parser import DoclingParser
 

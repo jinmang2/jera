@@ -17,6 +17,14 @@ class MediaType(StrEnum):
     PLAIN = "text/plain"
     PDF = "application/pdf"
     HTML = "text/html"
+    HWPX = "application/hwpx"  # Hancom OWPML (zip+XML); parsed by HwpxParser (stdlib)
+    HWP = "application/x-hwp"  # legacy Hancom binary (OLE); M5b pyhwp adapter
+
+
+# DocumentElement.metadata provenance keys written by RoutingPdfParser / OCR-routed paths.
+METADATA_ROUTE = "route"  # "text" | "ocr" | "vlm"
+METADATA_OCR_ENGINE = "ocr_engine"  # engine_id when route == "ocr"
+METADATA_OCR_CONFIDENCE = "ocr_confidence"  # float in [0,1] when route == "ocr"
 
 
 class ElementType(StrEnum):

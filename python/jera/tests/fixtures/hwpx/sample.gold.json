@@ -1,0 +1,16 @@
+{
+  "_note": "Hand-authored gold labels for sample.hwpx, INDEPENDENT of the parser output (graded against, not derived from it). Keys are element order indices.",
+  "element_types": {
+    "0": "Title",
+    "1": "NarrativeText",
+    "2": "Title",
+    "3": "Table"
+  },
+  "reading_order": ["0", "1", "2", "3"],
+  "table_cells": [
+    [0, 0, "항목"],
+    [0, 1, "값"],
+    [1, 0, "매출"],
+    [1, 1, "1000"]
+  ]
+}
