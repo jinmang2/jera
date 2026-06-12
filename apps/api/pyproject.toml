@@ -1,0 +1,20 @@
+[project]
+name = "jera-api"
+version = "0.1.0"
+description = "Jera FastAPI adapter — routers/DI/schemas only, no domain logic"
+requires-python = ">=3.11"
+dependencies = [
+    "jera",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[tool.uv.sources]
+jera = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

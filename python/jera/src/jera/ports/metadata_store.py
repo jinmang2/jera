@@ -1,0 +1,35 @@
+"""MetadataStore port — owns documents, chunks, jobs, and config snapshots."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
+
+from jera.domain.chunk import Chunk
+from jera.domain.document import ParsedDocument
+from jera.domain.jobs import IngestionJob, ProviderConfigSnapshot
+
+
+@runtime_checkable
+class MetadataStore(Protocol):
+    def init_schema(self) -> None: ...
+
+    # documents
+    def save_document(self, document: ParsedDocument) -> None: ...
+
+    # chunks
+    def save_chunks(self, chunks: Sequence[Chunk]) -> None: ...
+
+    def get_chunk(self, chunk_id: str) -> Chunk | None: ...
+
+    def get_chunks(self, chunk_ids: Sequence[str]) -> list[Chunk]: ...
+
+    # jobs
+    def save_job(self, job: IngestionJob) -> None: ...
+
+    def get_job(self, job_id: str) -> IngestionJob | None: ...
+
+    # provider config snapshots
+    def save_config_snapshot(self, snapshot: ProviderConfigSnapshot) -> None: ...
+
+    def latest_config_snapshot(self) -> ProviderConfigSnapshot | None: ...
