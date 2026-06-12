@@ -1,30 +1,66 @@
-# Jera
+<div align="center">
 
-A hexagonal, **offline-first RAG** system. Domain logic lives in a repo-root `python/jera`
-package (src-layout); `apps/api` is a FastAPI **adapter only**. Every external capability —
-parsing, embedding, sparse encoding, vector store, reranking, generation — is a `Protocol`
-**port** with swappable **adapters**, selected by configuration profile.
+# 🌾 Jera
 
-- **Dev/test**: fully deterministic, no Docker, no torch, no paid keys — hash embeddings,
-  local BM25, an in-memory vector store with RRF/DBSF fusion, SQLite, and an extractive
-  generator. The whole pipeline runs and is tested end-to-end with zero external services.
-- **Prod**: Qdrant (named dense+sparse vectors, RRF/DBSF) + Postgres, with cloud
-  embedding/rerank/generation adapters — all opt-in, disabled by default.
+**A hexagonal, offline-first RAG system — built port-by-port, gate-by-gate.**
 
-See `.omc/plans/rag-redesign-plan.md` for the full architecture/ADR and the acceptance gates.
+*Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
+runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-## Layout
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **171 tests**
+
+</div>
+
+---
+
+## Why Jera
+
+Most RAG codebases couple domain logic to a web framework and a vendor SDK, then can't be
+tested without a running database and an API key. Jera inverts that:
+
+- **Hexagonal core.** Domain logic lives in `python/jera` (src-layout package `jera`).
+  `apps/api` is a FastAPI **adapter only**. Parsing, chunking, embedding, sparse encoding,
+  vector store, reranking, generation, OCR/page-routing — each is a port with adapters.
+- **Offline-deterministic by default, real models by opt-in.** The `test` profile is fully
+  deterministic (hash embeddings, local BM25, in-memory RRF/DBSF fusion, SQLite, extractive
+  generator). Heavy/paid engines (fastembed, Qdrant, Postgres, Claude, Docling, OCR) are
+  **opt-in extras, disabled by default** — CI never makes a paid call or needs a service.
+- **No fake paths.** Tooling that looks real is real: the tool-use loop mirrors the actual
+  Anthropic message protocol (proven offline with a multi-block fake LLM); the hybrid-retrieval
+  test proves a *genuine* fusion lift, not a rigged cosine.
+
+## Milestones (all on `main`)
+
+| | Milestone | Highlights |
+|---|---|---|
+| **M1** | Hexagonal vertical slice | ports/adapters, profiles, in-memory RRF/DBSF fusion, FastAPI, golden-file determinism |
+| **M2** | Evaluation harness | `EvalRunner` + gold dataset builder (recall@k / MRR / nDCG / citation-faithfulness) |
+| **M3** | Chunking + parsing | semantic (embedding-breakpoint) + hierarchical (RAPTOR-lite) chunkers; **real Docling** parser |
+| **M4** | Korean research RAG | computation/table eval cases; **fastembed multilingual** (bge-m3); **tool-use numeric QA** (Program-of-Thoughts, FinQA-style) |
+| **M5a** | Parser/OCR routing | `RoutingPdfParser` (per-page text\|OCR + provenance); **HWPX parser (stdlib)**; parser benchmark harness |
+
+Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
+
+## Architecture
 
 ```
 python/jera/src/jera/
-  domain/                 # pure models (Document, Chunk, ScoredChunk, Answer, ...)
+  domain/                 # pure models: Document, Chunk, ScoredChunk, Answer, ... (no IO)
   ports/                  # Protocols: parser, chunker, embedding, sparse, vector_store,
                           #            metadata_store, reranker, generator
-  adapters/               # concrete implementations (defaults + opt-in extras)
+  adapters/
+    parsing/              # markdown, pymupdf, docling[extra], hwpx(stdlib), routing_pdf
+    chunking/             # heading_aware, semantic, hierarchical
+    embedding/ sparse/    # hash + bm25 (CI) · fastembed[extra] · openai[cloud]
+    vector_store/         # in-memory RRF/DBSF (CI) · qdrant[extra]
+    metadata_store/       # SQLite (CI) · postgres[extra]
+    ranking/ generator/   # identity + extractive (CI) · cohere/claude[cloud] · tool-augmented
+  tooluse/                # transparent model-native tool-use runtime + AST-safe calculator
   pipeline/               # IngestPipeline, QueryPipeline
+  evaluation/             # EvalRunner, matrix, computation, gold/parser benchmarks
+  evaluation_contracts/   # metric pure-functions (retrieval + parsing)
   config/                 # Settings (profiles) + ProviderRegistry
-  evaluation_contracts/   # recall@k, MRR, nDCG, citation-faithfulness
-  rag/                    # public facade: `import jera.rag`
+  rag/                    # public facade:  import jera.rag
 apps/api/app/             # FastAPI adapter: routers / DI / schemas
 ```
 
@@ -32,17 +68,10 @@ apps/api/app/             # FastAPI adapter: routers / DI / schemas
 
 ```bash
 uv sync                        # install the workspace (both packages, editable)
-bash scripts/gates.sh          # ruff + mypy + pytest (all acceptance gates)
+bash scripts/gates.sh          # ruff + ruff format + mypy --strict + pytest  (171 passed, offline)
 uv run python scripts/eval.py  # demo eval: dense vs sparse vs hybrid metric table
 uv run uvicorn app.main:app --reload --app-dir apps/api   # serve the API
 ```
-
-### Evaluation
-
-`jera.evaluation` turns the metric contracts (recall@k / MRR / nDCG / citation-faithfulness)
-into a runnable harness: `build_gold_dataset` labels gold chunks by substring (no rotting id
-lists), and `EvalRunner` scores dense/sparse/hybrid retrieval into an `EvalReport`. The same
-harness measures real model quality under the `local`/`prod` profiles with no code change.
 
 ### API
 
@@ -54,28 +83,42 @@ curl -s localhost:8000/query -H 'content-type: application/json' \
   -d '{"query":"what does hybrid retrieval use?","top_k":3}'
 ```
 
-## Profiles
+## Profiles & configuration
 
-**Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic`
-(embedding-breakpoint sentence splitting) · `hierarchical` (RAPTOR-lite: cluster leaves +
-extractive parent summaries linked by `parent_chunk_id`). **Parsing** — `JERA_USE_DOCLING=1`
-prefers Docling (layout/table/OCR) for PDF/HTML over the PyMuPDF fallback (extra: `docling`).
-
-Set `JERA_PROFILE` (default `test`):
+Set via `JERA_*` env vars (default profile = `test`).
 
 | profile | embedding | sparse | vector store | metadata | rerank | generate |
 |---|---|---|---|---|---|---|
 | `test`  | hash (deterministic) | BM25 local | in-memory | SQLite `:memory:` | identity | extractive |
-| `local` | fastembed (ONNX) `[local]` | fastembed SPLADE `[local]` | in-memory | SQLite file | fastembed CE `[local]` | extractive |
+| `local` | fastembed bge-m3 `[local]` | fastembed SPLADE `[local]` | in-memory | SQLite file | bge-reranker `[local]` | extractive / tool-use |
 | `prod`  | OpenAI `[cloud]`* | (sparse) | Qdrant `[qdrant]` | Postgres `[postgres]` | Cohere `[cloud]`* | Claude `[cloud]`* |
 
-`*` cloud adapters are disabled unless `JERA_ENABLE_CLOUD=1` and the matching API key are set.
-Optional extras: `uv sync --extra local --extra qdrant --extra postgres --extra cloud --extra docling`.
+- **Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic` · `hierarchical`.
+- **Parsing** — `JERA_USE_DOCLING=1` (layout/table/OCR, `[docling]`) · `JERA_USE_ROUTING_PDF=1`
+  (per-page text\|OCR routing with provenance). HWPX (Hancom) parses with **stdlib only**.
+- **Generator** — `JERA_GENERATOR_KIND=tooluse` enables the calculator-tool numeric-QA path.
+- `*` cloud adapters are disabled unless `JERA_ENABLE_CLOUD=1` + the matching key.
 
-## Acceptance gates (M1)
+```bash
+uv sync --extra local --extra qdrant --extra postgres --extra cloud --extra docling
+```
 
-`scripts/gates.sh` enforces: package boundary (no `app.*` domain imports; src-layout
-import proof), typed-element parsing with provenance, chunk stability, dense/sparse/hybrid
-retrieval with a **non-tautological** fusion-lift case, golden-file RRF/DBSF determinism,
-storage ownership of documents/chunks/jobs/config-snapshots, disabled-by-default paid
-providers, and an end-to-end cited-answer test through the FastAPI app.
+## Quality gates
+
+`scripts/gates.sh` (CI) runs fully offline and enforces, among others: package boundary
+(no `app.*` domain imports; src-layout install proof), typed-element parsing with provenance,
+chunk stability, dense/sparse/hybrid retrieval with a **non-tautological fusion-lift**,
+golden-file RRF/DBSF determinism (k=60, 1-based ranks, chunk_id tie-break), storage ownership,
+disabled-by-default paid providers, an end-to-end cited-answer test through FastAPI, and a
+base-only import smoke test so no heavy dep can sneak into the offline core.
+
+## Project context
+
+`.omc/plans/` (consensus plans + ADRs) · `.omc/specs/` (deep-interview specs) ·
+`.omc/memory/` (durable project memory, restorable on a new machine) · `QA_REPORT.md`
+(last verification). Next up: **M5b** — the opt-in parser/OCR zoo
+(opendataloader-pdf, camelot, pyhwp, tesseract/rapidocr, CLOVA-disabled, local VLM router).
+
+---
+
+<div align="center"><sub>Built with Claude Code — deep-interview → consensus → team → review.</sub></div>
