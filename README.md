@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **198 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **235 tests**
 
 </div>
 
@@ -38,7 +38,8 @@ tested without a running database and an API key. Jera inverts that:
 | **M3** | Chunking + parsing | semantic (embedding-breakpoint) + hierarchical (RAPTOR-lite) chunkers; **real Docling** parser |
 | **M4** | Korean research RAG | computation/table eval cases; **fastembed multilingual** (bge-m3); **tool-use numeric QA** (Program-of-Thoughts, FinQA-style) |
 | **M5a** | Parser/OCR routing | `RoutingPdfParser` (per-page text\|OCR + provenance); **HWPX parser (stdlib)**; parser benchmark harness |
-| **M6** | Contextual retrieval + gen-eval | Anthropic **Contextual Retrieval** (situate chunks → Contextual Embeddings + Contextual BM25; deterministic heuristic in CI, Claude opt-in); **RAGAS-lite** generation metrics (faithfulness / answer-relevance / answer-correctness / context-precision) |
+| **M6** | Contextual retrieval + gen-eval | Anthropic **Contextual Retrieval** (situate chunks → Contextual Embeddings + Contextual BM25; deterministic heuristic in CI, Claude opt-in); **RAGAS-lite** generation metrics (faithfulness / answer-relevance / answer-correctness / context-precision), wired into the eval harness |
+| **M7** | Retrieval & answer quality | **MMR** diversity reranker (λ relevance/diversity); **multi-query retrieval** (rule-based decomposition + **HyDE** opt-in, RRF-fused); generation metrics in the strategy matrix |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -101,6 +102,11 @@ Set via `JERA_*` env vars (default profile = `test`).
 - **Contextual retrieval** — `JERA_USE_CONTEXTUAL_RETRIEVAL=1` situates each chunk before
   indexing (Anthropic, 2024); `JERA_CONTEXTUALIZER_KIND` ∈ `heuristic` (title+section, offline)
   · `llm` (Claude-written, `[cloud]`). `Chunk.text` is never mutated — only `embedding_text` is.
+- **Multi-query retrieval** — `JERA_USE_QUERY_TRANSFORM=1` expands the query and RRF-fuses the
+  per-variant rankings; `JERA_QUERY_TRANSFORM_KIND` ∈ `rule_based` (clause decomposition, offline)
+  · `hyde` (HyDE hypothetical-answer, `[cloud]`).
+- **Reranker** — `JERA_RERANKER_KIND=mmr` swaps the identity reranker for **MMR** diversity
+  (`JERA_MMR_LAMBDA`, 1.0 = pure relevance, lower = more diverse).
 - `*` cloud adapters are disabled unless `JERA_ENABLE_CLOUD=1` + the matching key.
 
 ```bash

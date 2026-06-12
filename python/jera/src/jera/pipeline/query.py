@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from jera.adapters.vector_store.fusion import reciprocal_rank_fusion
 from jera.domain.answer import Answer
 from jera.domain.chunk import Chunk
 from jera.domain.retrieval import (
@@ -20,6 +21,7 @@ from jera.domain.retrieval import (
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
 from jera.ports.metadata_store import MetadataStore
+from jera.ports.query_transformer import QueryTransformer
 from jera.ports.reranker import Reranker
 from jera.ports.sparse import SparseVectorProvider
 from jera.ports.vector_store import VectorStore
@@ -49,6 +51,7 @@ class QueryPipeline:
         reranker: Reranker,
         generator: GeneratorLLM,
         collection: str,
+        query_transformer: QueryTransformer | None = None,
     ) -> None:
         self._embedding = embedding
         self._sparse = sparse
@@ -57,6 +60,9 @@ class QueryPipeline:
         self._reranker = reranker
         self._generator = generator
         self._collection = collection
+        # Multi-query retrieval (off unless set): expand the query into variants, retrieve each,
+        # and RRF-fuse the rankings. The answer path uses it automatically when present.
+        self._query_transformer = query_transformer
 
     @property
     def embedding(self) -> EmbeddingProvider:
@@ -69,20 +75,45 @@ class QueryPipeline:
         return " ".join(text.split())
 
     def retrieve(self, query: Query) -> RetrievalResult:
-        text = self.analyze(query.text)
+        scored = self._attach_chunks(self._search_text(self.analyze(query.text), query))
+        return RetrievalResult(query=query, stage=query.mode.value, results=scored)
+
+    def retrieve_multi(self, query: Query) -> RetrievalResult:
+        """Multi-query retrieval: expand into variants, retrieve each, RRF-fuse the rankings.
+
+        Falls back to single-query ``retrieve`` when no transformer is set or only the original
+        variant survives. Each variant is retrieved at ``top_k`` and the fused result truncated
+        to ``top_k`` — a chunk buried by the original phrasing can win via a variant ranking.
+        """
+        if self._query_transformer is None:
+            return self.retrieve(query)
+        variants = self._query_transformer.transform(self.analyze(query.text))
+        if len(variants) <= 1:
+            return self.retrieve(query)
+
+        rankings: dict[str, list[str]] = {}
+        for i, variant in enumerate(variants):
+            scored = self._search_text(self.analyze(variant), query)
+            rankings[f"q{i}"] = [s.chunk_id for s in scored]
+        fused = reciprocal_rank_fusion(rankings)[: query.top_k]
+        results = self._attach_chunks(
+            [ScoredChunk(chunk_id=cid, score=score) for cid, score in fused]
+        )
+        return RetrievalResult(query=query, stage="multi_query", results=results)
+
+    def _search_text(self, text: str, query: Query) -> list[ScoredChunk]:
+        """Single-variant dense/sparse/hybrid search (no chunk attachment)."""
         dense = (
             self._embedding.embed_query(text) if query.mode is not RetrievalMode.SPARSE else None
         )
         sparse = self._sparse.encode_query(text) if query.mode is not RetrievalMode.DENSE else None
-        scored = self._vectors.search(
+        return self._vectors.search(
             self._collection,
             dense=dense,
             sparse=sparse,
             top_k=query.top_k,
             fusion=query.fusion,
         )
-        scored = self._attach_chunks(scored)
-        return RetrievalResult(query=query, stage=query.mode.value, results=scored)
 
     def rerank(self, query_text: str, scored: list[ScoredChunk], top_k: int) -> list[ScoredChunk]:
         return self._reranker.rerank(self.analyze(query_text), scored, top_k)
@@ -111,7 +142,7 @@ class QueryPipeline:
     ) -> AnsweredQuery:
         """The full answer path, also returning the evidence (for generation evaluation)."""
         query = Query(text=query_text, top_k=top_k, mode=mode, fusion=fusion)
-        retrieved = self.retrieve(query)
+        retrieved = self.retrieve_multi(query)
         retrieved_ids = [c.chunk_id for c in retrieved.results]
         if not retrieved.results:
             # Defined empty-result behavior: empty answer, no citations, no error.

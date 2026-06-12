@@ -50,6 +50,26 @@ _DATASET = EvalDataset(
     ],
 )
 
+# Dataset variant with reference answers to exercise answer_correctness /
+# answer_relevance metrics.
+_DATASET_WITH_REF = EvalDataset(
+    name="test_matrix_ref",
+    cases=[
+        EvalCase(
+            case_id="t-001",
+            query="한국 경제성장률 전망",
+            gold=[GoldChunk(chunk_id="doc-a-0")],
+            reference_answer="2023년 한국 경제성장률은 1.4%로 전망됩니다.",
+        ),
+        EvalCase(
+            case_id="t-002",
+            query="소비자물가 상승률",
+            gold=[GoldChunk(chunk_id="doc-a-1")],
+            reference_answer="소비자물가 상승률은 3.6%를 기록하였습니다.",
+        ),
+    ],
+)
+
 _TEST_SETTINGS = Settings(profile="test")  # type: ignore[arg-type]
 
 
@@ -156,6 +176,10 @@ class TestToMarkdown:
         assert "|" in md
         assert "---" in md
 
+    def test_markdown_mentions_faithfulness(self) -> None:
+        md = self._make_report().to_markdown()
+        assert "faithful" in md
+
 
 # ---------------------------------------------------------------------------
 # run_matrix — edge cases
@@ -198,3 +222,91 @@ class TestRunMatrixEdgeCases:
         assert entry is not None
         assert entry.mean_recall_at_k == 0.0
         assert entry.mean_mrr == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Generation metrics on StrategyEntry
+# ---------------------------------------------------------------------------
+
+
+class TestGenerationMetrics:
+    """RAGAS-lite generation metrics are populated for each strategy entry."""
+
+    def test_generation_fields_present_on_entry(self) -> None:
+        """Every StrategyEntry exposes the four generation-metric fields."""
+        report = run_matrix(
+            _DATASET,
+            corpus=_CORPUS,
+            strategies=["heading_aware", "semantic"],
+            modes=[RetrievalMode.DENSE, RetrievalMode.HYBRID],
+            settings_base=_TEST_SETTINGS,
+        )
+        assert len(report.entries) >= 2
+        for entry in report.entries:
+            assert hasattr(entry, "mean_faithfulness")
+            assert hasattr(entry, "mean_context_precision")
+            assert hasattr(entry, "mean_answer_correctness")
+            assert hasattr(entry, "mean_answer_relevance")
+
+    def test_faithfulness_and_context_precision_in_unit_interval(self) -> None:
+        """faithfulness and context_precision are floats in [0, 1]."""
+        report = run_matrix(
+            _DATASET,
+            corpus=_CORPUS,
+            strategies=["heading_aware", "semantic"],
+            modes=[RetrievalMode.DENSE, RetrievalMode.HYBRID],
+            settings_base=_TEST_SETTINGS,
+        )
+        for entry in report.entries:
+            assert 0.0 <= entry.mean_faithfulness <= 1.0
+            assert 0.0 <= entry.mean_context_precision <= 1.0
+
+    def test_no_reference_answer_yields_none_optional_metrics(self) -> None:
+        """Without reference_answer on cases, correctness and relevance are None."""
+        report = run_matrix(
+            _DATASET,  # no reference_answer on any case
+            corpus=_CORPUS,
+            strategies=["heading_aware"],
+            modes=[RetrievalMode.HYBRID],
+            settings_base=_TEST_SETTINGS,
+        )
+        entry = report.get("heading_aware", "hybrid")
+        assert entry is not None
+        assert entry.mean_answer_correctness is None
+        assert entry.mean_answer_relevance is None
+
+    def test_with_reference_answer_optional_metrics_in_unit_interval(self) -> None:
+        """With reference_answer, correctness and relevance are floats in [0, 1]."""
+        report = run_matrix(
+            _DATASET_WITH_REF,
+            corpus=_CORPUS,
+            strategies=["heading_aware"],
+            modes=[RetrievalMode.HYBRID],
+            settings_base=_TEST_SETTINGS,
+        )
+        entry = report.get("heading_aware", "hybrid")
+        assert entry is not None
+        assert entry.mean_answer_correctness is not None
+        assert entry.mean_answer_relevance is not None
+        assert 0.0 <= entry.mean_answer_correctness <= 1.0
+        assert 0.0 <= entry.mean_answer_relevance <= 1.0
+
+    def test_generation_metrics_shared_across_modes_within_strategy(self) -> None:
+        """Generation metrics are per-strategy (same value across modes)."""
+        report = run_matrix(
+            _DATASET,
+            corpus=_CORPUS,
+            strategies=["heading_aware"],
+            modes=[RetrievalMode.DENSE, RetrievalMode.SPARSE, RetrievalMode.HYBRID],
+            settings_base=_TEST_SETTINGS,
+        )
+        dense = report.get("heading_aware", "dense")
+        sparse = report.get("heading_aware", "sparse")
+        hybrid = report.get("heading_aware", "hybrid")
+        assert dense is not None and sparse is not None and hybrid is not None
+        assert dense.mean_faithfulness == sparse.mean_faithfulness == hybrid.mean_faithfulness
+        assert (
+            dense.mean_context_precision
+            == sparse.mean_context_precision
+            == hybrid.mean_context_precision
+        )

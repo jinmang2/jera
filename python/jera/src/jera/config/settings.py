@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     # retrieval
     top_k: int = 5
 
+    # multi-query retrieval — expand the query and RRF-fuse per-variant rankings
+    use_query_transform: bool = False
+    query_transform_kind: str = "rule_based"  # rule_based (offline) | hyde (opt-in, needs cloud)
+
+    # reranker back-end (test/in-memory): "identity" (default, passthrough) | "mmr" (diversity)
+    reranker_kind: str = "identity"
+    mmr_lambda: float = 0.7  # MMRReranker tradeoff: 1.0 = pure relevance, lower = more diverse
+
     # local profile model overrides (None → adapter picks its own default)
     # local dense default: BAAI/bge-m3 (1024-dim multilingual)
     # S0 fallback: intfloat/multilingual-e5-large

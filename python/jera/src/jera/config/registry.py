@@ -30,6 +30,7 @@ from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
 from jera.ports.metadata_store import MetadataStore
 from jera.ports.parser import DocumentParser
+from jera.ports.query_transformer import QueryTransformer
 from jera.ports.reranker import Reranker
 from jera.ports.sparse import SparseVectorProvider
 from jera.ports.vector_store import VectorStore
@@ -57,9 +58,10 @@ def build_system(settings: Settings | None = None) -> RagSystem:
     sparse = _build_sparse(settings)
     vector_store = _build_vector_store(settings)
     metadata_store = _build_metadata_store(settings)
-    reranker = _build_reranker(settings)
+    reranker = _build_reranker(settings, embedding)
     generator = _build_generator(settings)
     contextualizer = _build_contextualizer(settings)
+    query_transformer = _build_query_transformer(settings)
 
     ingest = IngestPipeline(
         parsers=parsers,
@@ -79,6 +81,7 @@ def build_system(settings: Settings | None = None) -> RagSystem:
         reranker=reranker,
         generator=generator,
         collection=settings.collection,
+        query_transformer=query_transformer,
     )
 
     metadata_store.save_config_snapshot(
@@ -163,6 +166,29 @@ def _build_contextualizer(settings: Settings) -> Contextualizer | None:
     raise ValueError(f"unknown contextualizer_kind {settings.contextualizer_kind!r}")
 
 
+def _build_query_transformer(settings: Settings) -> QueryTransformer | None:
+    """Multi-query retrieval is off by default. ``rule_based`` is offline/CI-real; ``hyde``
+    needs a real HypothesisLLM (cloud, opt-in) and is built only with cloud + an Anthropic key."""
+    if not settings.use_query_transform:
+        return None
+    if settings.query_transform_kind == "rule_based":
+        from jera.adapters.query.rule_based_expander import RuleBasedExpander
+
+        return RuleBasedExpander()
+    if settings.query_transform_kind == "hyde":
+        if not (settings.enable_cloud and settings.anthropic_api_key):
+            raise RuntimeError(
+                "query_transform_kind='hyde' needs enable_cloud=True + an anthropic_api_key "
+                "(paid). Use query_transform_kind='rule_based' for the offline path."
+            )
+        from jera.adapters.query.claude_hypothesis_llm import ClaudeHypothesisLLM
+        from jera.adapters.query.hyde import HydeTransformer
+
+        llm = ClaudeHypothesisLLM(api_key=settings.anthropic_api_key, enabled=True)
+        return HydeTransformer(llm)
+    raise ValueError(f"unknown query_transform_kind {settings.query_transform_kind!r}")
+
+
 def _build_embedding(settings: Settings) -> EmbeddingProvider:
     if settings.profile is Profile.LOCAL:
         from jera.adapters.embedding.fastembed_embedding import FastEmbedEmbedding
@@ -201,7 +227,12 @@ def _build_metadata_store(settings: Settings) -> MetadataStore:
     return make_sqlite_store(settings.sqlite_path)
 
 
-def _build_reranker(settings: Settings) -> Reranker:
+def _build_reranker(settings: Settings, embedding: EmbeddingProvider) -> Reranker:
+    # Explicit MMR opt-in (any profile): diversity reorder over the embedding — no model/key.
+    if settings.reranker_kind == "mmr":
+        from jera.adapters.ranking.mmr_reranker import MMRReranker
+
+        return MMRReranker(embedding, lambda_=settings.mmr_lambda)
     if settings.profile is Profile.LOCAL:
         from jera.adapters.ranking.fastembed_reranker import FastEmbedReranker
 

@@ -1,7 +1,8 @@
 """Matrix evaluation: run EvalRunner across chunk strategies × retrieval modes.
 
 Produces a ``MatrixReport`` with one ``EvalReport`` per strategy, which
-``to_markdown()`` renders as a strategy × mode table of recall@k / MRR / nDCG.
+``to_markdown()`` renders as a strategy × mode table of recall@k / MRR / nDCG /
+faithfulness / context_precision.
 
 Design notes
 ------------
@@ -10,6 +11,11 @@ Design notes
   strategies — no cross-strategy embedding cache is introduced.
 - Modes (dense / sparse / hybrid) are scored inside a single ``EvalRunner.run``
   call per strategy, reusing the same ingest for all modes within a strategy.
+- Generation metrics (faithfulness, context_precision, answer_correctness,
+  answer_relevance) are computed once per strategy via ``GenerationEvalRunner``
+  using ``gen_mode`` (default ``RetrievalMode.HYBRID``) and stored on every
+  ``StrategyEntry`` for that strategy.  They are the same across modes within a
+  strategy because the generator is mode-independent per run.
 - This module is offline-safe: under the TEST profile (hash embeddings, BM25,
   in-memory store) no model weights are downloaded.  The local profile requires
   ``uv sync --extra local`` and downloads fastembed models on first use.
@@ -23,7 +29,8 @@ from dataclasses import dataclass, field
 from jera.config.registry import RagSystem, build_system
 from jera.config.settings import Settings
 from jera.domain.document import MediaType
-from jera.domain.retrieval import RetrievalMode
+from jera.domain.retrieval import FusionMethod, RetrievalMode
+from jera.evaluation.generation_runner import GenerationEvalRunner
 from jera.evaluation.runner import EvalRunner
 from jera.evaluation_contracts.dataset import EvalDataset
 
@@ -40,18 +47,28 @@ _DEFAULT_MODES: tuple[RetrievalMode, ...] = (
 
 @dataclass
 class StrategyEntry:
-    """Metrics for one (strategy, mode) cell in the matrix."""
+    """Metrics for one (strategy, mode) cell in the matrix.
+
+    Retrieval metrics (recall@k, mrr, ndcg@k) vary per mode.  Generation
+    metrics (faithfulness, context_precision, answer_correctness,
+    answer_relevance) are computed once per strategy and shared across modes.
+    """
 
     strategy: str
     mode: str
     mean_recall_at_k: float
     mean_mrr: float
     mean_ndcg_at_k: float
+    # RAGAS-lite generation metrics — shared across modes for a given strategy.
+    mean_faithfulness: float = 0.0
+    mean_context_precision: float = 0.0
+    mean_answer_correctness: float | None = None
+    mean_answer_relevance: float | None = None
 
 
 @dataclass
 class MatrixReport:
-    """Matrix of retrieval metrics: strategies (rows) × modes (columns).
+    """Matrix of retrieval + generation metrics: strategies (rows) × modes (columns).
 
     ``entries`` is ordered: outer loop strategies, inner loop modes —
     matching the iteration order of ``run_matrix``.
@@ -82,19 +99,23 @@ class MatrixReport:
         """Render the matrix as a GitHub-flavoured Markdown table.
 
         Produces one section per strategy; within each section the three
-        retrieval modes are columns.  Example::
+        retrieval modes are columns.  Each row also shows the per-strategy
+        generation metrics (faithfulness and context_precision).  Example::
 
             ## heading_aware
 
-            | mode    | recall@5 |    mrr | ndcg@5 |
-            |---------|----------|--------|--------|
-            | dense   |    0.800 |  0.750 |  0.770 |
+            | mode    | recall@5 |    mrr | ndcg@5 | faithful | ctx_prec |
+            |---------|----------|--------|--------|----------|----------|
+            | dense   |    0.800 |  0.750 |  0.770 |    0.900 |    0.850 |
             ...
         """
         lines: list[str] = [f"# Matrix Eval — {self.dataset}\n"]
         k_str = str(self.k)
-        header = f"| {'mode':<8} | {'recall@' + k_str:<8} | {'mrr':>6} | {'ndcg@' + k_str:>6} |"
-        sep = f"|{'-' * 10}|{'-' * 10}|{'-' * 8}|{'-' * 8}|"
+        header = (
+            f"| {'mode':<8} | {'recall@' + k_str:<8} | {'mrr':>6}"
+            f" | {'ndcg@' + k_str:>6} | {'faithful':>8} | {'ctx_prec':>8} |"
+        )
+        sep = f"|{'-' * 10}|{'-' * 10}|{'-' * 8}|{'-' * 8}|{'-' * 10}|{'-' * 10}|"
 
         for strategy in self.strategies:
             lines.append(f"## {strategy}\n")
@@ -103,12 +124,17 @@ class MatrixReport:
             for mode in self.modes:
                 entry = self.get(strategy, mode)
                 if entry is None:
-                    lines.append(f"| {mode:<8} | {'n/a':>8} | {'n/a':>6} | {'n/a':>6} |")
+                    lines.append(
+                        f"| {mode:<8} | {'n/a':>8} | {'n/a':>6}"
+                        f" | {'n/a':>6} | {'n/a':>8} | {'n/a':>8} |"
+                    )
                 else:
                     lines.append(
                         f"| {mode:<8} | {entry.mean_recall_at_k:>8.3f}"
                         f" | {entry.mean_mrr:>6.3f}"
-                        f" | {entry.mean_ndcg_at_k:>6.3f} |"
+                        f" | {entry.mean_ndcg_at_k:>6.3f}"
+                        f" | {entry.mean_faithfulness:>8.3f}"
+                        f" | {entry.mean_context_precision:>8.3f} |"
                     )
             lines.append("")
 
@@ -151,8 +177,14 @@ def run_matrix(
     modes: Sequence[RetrievalMode] = _DEFAULT_MODES,
     settings_base: Settings | None = None,
     k: int = 5,
+    gen_mode: RetrievalMode = RetrievalMode.HYBRID,
+    gen_fusion: FusionMethod = FusionMethod.RRF,
 ) -> MatrixReport:
-    """Run EvalRunner across all *strategies* × *modes* and return a MatrixReport.
+    """Run EvalRunner and GenerationEvalRunner across all *strategies* × *modes*.
+
+    Returns a ``MatrixReport`` with retrieval metrics per (strategy, mode) cell
+    and RAGAS-lite generation metrics per strategy (shared across all modes for
+    that strategy).
 
     Parameters
     ----------
@@ -172,7 +204,13 @@ def run_matrix(
         iteration; all other fields are preserved.  Defaults to
         ``Settings()`` (TEST profile).
     k:
-        Top-k for recall / nDCG.
+        Top-k for recall / nDCG and for generation context window.
+    gen_mode:
+        Retrieval mode used by ``GenerationEvalRunner`` for generation
+        metrics.  Defaults to ``RetrievalMode.HYBRID``.
+    gen_fusion:
+        Fusion method used by ``GenerationEvalRunner``.  Defaults to
+        ``FusionMethod.RRF``.
 
     Raises
     ------
@@ -205,8 +243,13 @@ def run_matrix(
         system = build_system(settings)
         _ingest_corpus(system, corpus)
 
+        # --- Retrieval metrics ---
         runner = EvalRunner(system.query)
         eval_report = runner.run(dataset, k=k, modes=modes)
+
+        # --- Generation metrics (once per strategy, shared across modes) ---
+        gen_runner = GenerationEvalRunner(system.query)
+        gen_report = gen_runner.run(dataset, k=k, mode=gen_mode, fusion=gen_fusion)
 
         for mode in modes:
             mode_report = eval_report.modes.get(mode.value)
@@ -219,6 +262,10 @@ def run_matrix(
                     mean_recall_at_k=mode_report.mean_recall_at_k,
                     mean_mrr=mode_report.mean_mrr,
                     mean_ndcg_at_k=mode_report.mean_ndcg_at_k,
+                    mean_faithfulness=gen_report.mean_faithfulness,
+                    mean_context_precision=gen_report.mean_context_precision,
+                    mean_answer_correctness=gen_report.mean_answer_correctness,
+                    mean_answer_relevance=gen_report.mean_answer_relevance,
                 )
             )
 
