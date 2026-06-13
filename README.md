@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **536 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **594 tests**
 
 </div>
 
@@ -43,6 +43,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M7** | Retrieval & answer quality | **MMR** diversity reranker (λ relevance/diversity); **multi-query retrieval** (rule-based decomposition + **HyDE** opt-in, RRF-fused); generation metrics in the strategy matrix |
 | **M8** | Hardening (no stopgaps) | every opt-in cloud/vendor adapter **verified by SDK-boundary tests** (real request/response logic, no keys); real `ClaudeToolUseGenerator` wired + **`pause_turn`** handled; real per-model **pricing** (no `cost_metadata` placeholder); **genuine offline Korean eval dataset** (real chunks/gold, replacing the scaffold) |
 | **M9** | Lifecycle + observability | **idempotent re-ingest** (no duplicates) + document **delete** (cascades to vectors); document/job API (`GET /documents`, `GET/DELETE /documents/{id}`, `GET /jobs/{id}`); per-query **timing + cost** stats on `/query` |
+| **M10** | 2025–26 SOTA (researched) | **late-interaction ColBERT MaxSim** retrieval (multi-vector ports); **Corrective RAG** (retrieval-grader → corrective re-query); **Adaptive-RAG** query-complexity router (skips retrieval when unneeded); **sub-question decomposition** (sequential multi-hop) — all offline-deterministic with non-tautological tests |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
