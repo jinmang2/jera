@@ -293,6 +293,81 @@ class QueryPipeline:
             answer=answer, contexts=contexts, retrieved_ids=retrieved_ids, stats=stats
         )
 
+    def generate_from_contexts(
+        self,
+        query_text: str,
+        contexts: Sequence[Chunk],
+        *,
+        retrieved_ids: list[str] | None = None,
+        upstream_timings_ms: dict[str, float] | None = None,
+    ) -> AnsweredQuery:
+        """Generate an answer from an explicit, already-retrieved+reranked context list.
+
+        This exists for advanced retrieval pipelines (CRAG, decomposition, iterative) that
+        build their OWN corrected/accumulated context and must feed *that* to the generator —
+        not silently re-run vanilla retrieval. It applies the configured context processors,
+        enforces the citation-resolves-to-context invariant, and records stats. It performs
+        **no** retrieval or reranking of its own (``retrieve``/``rerank`` timings default to 0
+        or are carried from ``upstream_timings_ms``).
+
+        Args:
+            query_text:   The (original) user query, used for processing + generation + cost.
+            contexts:     The chunks to answer from, already ranked best-first by the caller.
+            retrieved_ids: The caller's retrieval ranking ids (for context_precision). Defaults
+                          to the context chunk ids when not supplied.
+            upstream_timings_ms: Optional ``{"retrieve":…, "rerank":…}`` measured by the caller,
+                          folded into the returned stats so end-to-end timing stays honest.
+        """
+        t_total_start = time.perf_counter()
+        normalized = self.analyze(query_text)
+
+        # Context engineering (off unless configured): curate → compress → reorder. Each
+        # processor preserves chunk_id (compression only trims text), so citations still resolve.
+        processed: list[Chunk] = list(contexts)
+        for processor in self._context_processors:
+            processed = processor.process(normalized, processed)
+
+        t0 = time.perf_counter()
+        answer = self._generator.generate(normalized, processed)
+        t_generate_ms = (time.perf_counter() - t0) * 1000.0
+
+        valid_ids = {c.chunk_id for c in processed}
+        for citation in answer.citations:
+            assert citation.chunk_id in valid_ids, "citation does not resolve to a context chunk"
+
+        t_local_ms = (time.perf_counter() - t_total_start) * 1000.0
+        timings: dict[str, float] = dict(upstream_timings_ms or {})
+        timings.setdefault("retrieve", 0.0)
+        timings.setdefault("rerank", 0.0)
+        timings["generate"] = t_generate_ms
+        # total = caller's upstream retrieve/rerank + this method's wall-clock (gen + processing).
+        timings["total"] = timings["retrieve"] + timings["rerank"] + t_local_ms
+
+        estimated_cost = estimate_query_cost(
+            query_text=query_text,
+            context_texts=[c.text for c in processed],
+            answer_text=answer.text,
+            embedding_pricing=pricing_for(self._embedding.model_id),
+            generator_pricing=pricing_for(self._generator.model_id),
+        )
+        stats = QueryStats(
+            timings_ms=timings,
+            estimated_cost_usd=estimated_cost,
+            model_ids={
+                "embedding": self._embedding.model_id,
+                "reranker": self._reranker.model_id,
+                "generator": self._generator.model_id,
+            },
+        )
+        return AnsweredQuery(
+            answer=answer,
+            contexts=processed,
+            retrieved_ids=(
+                retrieved_ids if retrieved_ids is not None else [c.chunk_id for c in processed]
+            ),
+            stats=stats,
+        )
+
     def _attach_chunks(self, scored: list[ScoredChunk]) -> list[ScoredChunk]:
         chunks = {c.chunk_id: c for c in self._meta.get_chunks([s.chunk_id for s in scored])}
         out: list[ScoredChunk] = []

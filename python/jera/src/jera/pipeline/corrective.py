@@ -135,11 +135,14 @@ class CorrectiveQueryPipeline:
         grade: RetrievalGrade = self._evaluator.grade(query_text, initial)
 
         if grade is RetrievalGrade.CORRECT:
-            # Fast path: initial retrieval is good enough — skip correction.
-            answered: AnsweredQuery = self._pipeline.answer_with_contexts(
-                query_text, top_k=top_k, mode=mode, fusion=fusion, rerank_top_k=rerank_top_k
-            )
+            # Fast path: initial retrieval is good enough — skip correction, but the answer
+            # must still be generated from THESE (reranked initial) contexts, not a fresh
+            # re-retrieval, so the answer and the reported contexts stay coherent.
             reranked = self._pipeline.rerank(query_text, initial.results, rerank_top_k or top_k)
+            contexts = [sc.chunk for sc in reranked if sc.chunk is not None]
+            answered: AnsweredQuery = self._pipeline.generate_from_contexts(
+                query_text, contexts, retrieved_ids=[sc.chunk_id for sc in initial.results]
+            )
             return CorrectiveResult(
                 answer=answered.answer,
                 contexts=answered.contexts,
@@ -188,16 +191,17 @@ class CorrectiveQueryPipeline:
         reranked = self._pipeline.rerank(query_text, corrected_scored, rerank_top_k or top_k)
         contexts: list[Chunk] = [sc.chunk for sc in reranked if sc.chunk is not None]
 
-        # (e) Drive the generator.  answer_with_contexts runs its own full retrieve_multi
-        # path internally — we use its Answer and stats, but expose our corrected
-        # retrieved_ids and contexts so callers observe the corrective lift.
-        answered = self._pipeline.answer_with_contexts(
-            query_text, top_k=top_k, mode=mode, fusion=fusion, rerank_top_k=rerank_top_k
+        # (e) Generate from the CORRECTED contexts. This is the whole point of CRAG: the
+        # generator must answer from the corrected evidence, not a fresh vanilla retrieval.
+        # (The previous implementation called answer_with_contexts, which re-ran retrieval
+        # internally and silently discarded the correction — the answer ignored the lift.)
+        answered = self._pipeline.generate_from_contexts(
+            query_text, contexts, retrieved_ids=retrieved_ids
         )
 
         return CorrectiveResult(
             answer=answered.answer,
-            contexts=contexts,
+            contexts=answered.contexts,
             retrieved_ids=retrieved_ids,
             grade=grade,
             corrected=True,

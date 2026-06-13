@@ -5,8 +5,9 @@
 nothing was "eyeballed into rolling along" (대충 눈대중으로 굴러만 가게) instead of matching real specs.
 **Final gate:** `bash scripts/gates.sh` → **765 passed, 8 skipped, 0 failures** (GREEN).
 
-Four file-disjoint audit tracks, each verified against the originating paper or the vendor's
-**actual source code** (not just memory):
+Audit tracks, each verified against the originating paper or the vendor's **actual source code**
+(not just memory). Round 1 verified formulas/APIs; round 2 traced each technique's **data flow**
+to the generated answer (does the technique's work actually reach the answer, or roll along?).
 
 | Track | Report | Bugs fixed | Honesty fixes |
 |-------|--------|-----------|---------------|
@@ -14,8 +15,9 @@ Four file-disjoint audit tracks, each verified against the originating paper or 
 | Config / pricing | [audit-config.md](audit-config.md) | 1 | 1 |
 | Core algorithms | [audit-algos.md](audit-algos.md) | 1 | 0 |
 | Vendor store/parser/OCR | [audit-vendor.md](audit-vendor.md) | 1 | 0 |
+| **Advanced pipelines / techniques (round 2)** | [audit-pipelines.md](audit-pipelines.md) | **1** | 0 |
 
-**Total: 3 real bugs fixed, 1 honesty/overclaim fix. No test weakening.**
+**Total: 4 real bugs fixed, 1 honesty/overclaim fix. No test weakening.**
 
 ---
 
@@ -38,6 +40,15 @@ Bonus: this **restores** the frozen "two implementations agree" contract that mi
 `adapters/vector_store/qdrant_store.py` called `recreate_collection()`, deprecated since
 qdrant-client ≥ 1.7 (issue #711). Replaced with the documented
 `collection_exists() → delete_collection() → create_collection()`. Two test fakes updated to match.
+
+### 4. CRAG answer bypassed the correction (round 2, pipelines track)
+`pipeline/corrective.py` computed corrected contexts (graded → query-expanded → RRF-fused →
+reranked) but generated the answer via `answer_with_contexts`, which **re-ran vanilla retrieval
+and discarded the correction** — the answer was built from the uncorrected ranking. The test only
+checked `contexts`, never the answer, so it stayed green while the answer cited A and `contexts`
+showed B. Fixed by adding `QueryPipeline.generate_from_contexts(...)` (generate from an explicit
+context set, no re-retrieval) and routing both CRAG paths through it; strengthened the test to
+assert the answer reflects the corrected context. See [audit-pipelines.md](audit-pipelines.md).
 
 ## Honesty fix
 
@@ -73,7 +84,10 @@ corrected.
 
 ---
 
-**Bottom line:** the system was not "just rolling along." Three substantive correctness bugs
-(a wrong price, a wrong fusion algorithm, a deprecated DB call) were hiding behind green tests
-because the tests encoded the same assumptions as the code. The re-audit caught them by going to
-the **primary sources** — paper formulas and vendor source — and the suite is green with the fixes.
+**Bottom line:** the system was not "just rolling along" — but four substantive bugs were hiding
+behind green tests: a wrong price, a wrong fusion algorithm, a deprecated DB call, and a CRAG
+pipeline whose corrected context never reached the answer. Each test encoded the same blind spot
+as the code (right intermediate, unchecked outcome). The re-audit caught them by going to the
+**primary sources** — paper formulas, vendor source, and end-to-end data-flow tracing — and the
+suite is green with the fixes. Round 2 specifically traced every advanced technique from its input
+to the generated answer, not just "does it return a result."

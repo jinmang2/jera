@@ -219,6 +219,22 @@ def test_corrective_pipeline_lifts_b_to_recall_at_1() -> None:
         "The corrective vocabulary must bridge the lay-query ↔ domain-term gap."
     )
 
+    # COHERENCE — the ANSWER must be generated from the corrected contexts, not a silent
+    # re-retrieval of the vanilla ranking. (Regression guard: the prior implementation
+    # called answer_with_contexts, which re-ran retrieval internally and discarded the
+    # correction, so the answer cited A while contexts showed B.) The extractive generator
+    # cites every context it is given, so B must be the first citation and B's scientific
+    # vocabulary must surface in the answer text — neither holds if the answer came from A.
+    assert result.answer.citations, "corrected answer must carry citations"
+    assert result.answer.citations[0].chunk_id == result.contexts[0].chunk_id, (
+        "first citation must be the corrected recall@1 (B) — proving the generator answered "
+        "from the corrected context, not a fresh vanilla retrieval"
+    )
+    assert "mitosis" in result.answer.text.lower(), (
+        "answer text must be built from corrected context B (scientific vocab 'mitosis'); "
+        "if it came from vanilla retrieval it would contain only A's lay vocabulary"
+    )
+
 
 def test_corrective_pipeline_does_not_correct_when_grade_is_correct() -> None:
     """When the initial retrieval is CORRECT the pipeline skips the corrective loop."""
