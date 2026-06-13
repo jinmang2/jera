@@ -123,9 +123,14 @@ class DecompositionalQueryPipeline:
         max_contexts = top_k * len(sub_questions)
         contexts: list[Chunk] = accumulated[:max_contexts]
 
-        answer = self._generator.generate(normalized, contexts)
+        # Route generation through the pipeline's shared tail so configured context processors
+        # (curate/compress/reorder) and the citation invariant are applied here too — not only
+        # on the standard path. The injected generator is reused via the `generator` override.
+        answered = self._pipeline.generate_from_contexts(
+            normalized, contexts, generator=self._generator
+        )
         return DecompositionalResult(
-            answer=answer,
+            answer=answered.answer,
             sub_questions=sub_questions,
-            contexts=contexts,
+            contexts=answered.contexts,
         )

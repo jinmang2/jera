@@ -172,10 +172,15 @@ class IterativeRetrievalPipeline:
             current_query = next_q
 
         rounds_completed = len(queries_issued)
-        answer = self._generator.generate(original_query, accumulated)
+        # Route generation through the pipeline's shared tail so configured context processors
+        # and the citation invariant apply here too (not only on the standard path). The
+        # injected generator is reused via the `generator` override.
+        answered = self._pipeline.generate_from_contexts(
+            original_query, accumulated, generator=self._generator
+        )
         return IterativeResult(
-            answer=answer,
+            answer=answered.answer,
             queries=queries_issued,
-            contexts=accumulated,
+            contexts=answered.contexts,
             rounds=rounds_completed,
         )

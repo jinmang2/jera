@@ -255,42 +255,14 @@ class QueryPipeline:
             if sc.chunk is not None:
                 contexts.append(sc.chunk)
 
-        # Context engineering (M12, off unless configured): curate → compress → reorder. Each
-        # processor preserves chunk_id (compression only trims text), so citations still resolve.
-        for processor in self._context_processors:
-            contexts = processor.process(self.analyze(query_text), contexts)
-
-        t0 = time.perf_counter()
-        answer = self._generator.generate(self.analyze(query_text), contexts)
-        t_generate_ms = (time.perf_counter() - t0) * 1000.0
-
-        valid_ids = {c.chunk_id for c in contexts}
-        for citation in answer.citations:
-            assert citation.chunk_id in valid_ids, "citation does not resolve to a context chunk"
-
-        t_total_ms = (time.perf_counter() - t_total_start) * 1000.0
-
-        estimated_cost = estimate_query_cost(
-            query_text=query_text,
-            context_texts=[c.text for c in contexts],
-            answer_text=answer.text,
-            embedding_pricing=pricing_for(self._embedding.model_id),
-            generator_pricing=pricing_for(self._generator.model_id),
-        )
-
-        stats = QueryStats(
-            timings_ms={
-                "retrieve": t_retrieve_ms,
-                "rerank": t_rerank_ms,
-                "generate": t_generate_ms,
-                "total": t_total_ms,
-            },
-            estimated_cost_usd=estimated_cost,
-            model_ids=model_ids,
-        )
-
-        return AnsweredQuery(
-            answer=answer, contexts=contexts, retrieved_ids=retrieved_ids, stats=stats
+        # Generation tail (context processors → generate → citation invariant → cost → stats) is
+        # shared with the advanced pipelines via generate_from_contexts; pass the measured
+        # retrieve/rerank timings so the stats stay end-to-end honest.
+        return self.generate_from_contexts(
+            query_text,
+            contexts,
+            retrieved_ids=retrieved_ids,
+            upstream_timings_ms={"retrieve": t_retrieve_ms, "rerank": t_rerank_ms},
         )
 
     def generate_from_contexts(
@@ -300,15 +272,16 @@ class QueryPipeline:
         *,
         retrieved_ids: list[str] | None = None,
         upstream_timings_ms: dict[str, float] | None = None,
+        generator: GeneratorLLM | None = None,
     ) -> AnsweredQuery:
         """Generate an answer from an explicit, already-retrieved+reranked context list.
 
-        This exists for advanced retrieval pipelines (CRAG, decomposition, iterative) that
-        build their OWN corrected/accumulated context and must feed *that* to the generator —
-        not silently re-run vanilla retrieval. It applies the configured context processors,
-        enforces the citation-resolves-to-context invariant, and records stats. It performs
-        **no** retrieval or reranking of its own (``retrieve``/``rerank`` timings default to 0
-        or are carried from ``upstream_timings_ms``).
+        This is the shared generation tail used by ``answer_with_contexts`` *and* the advanced
+        retrieval pipelines (CRAG, decomposition, iterative) that build their OWN corrected/
+        accumulated context and must feed *that* to the generator — not silently re-run vanilla
+        retrieval. It applies the configured context processors, enforces the citation-resolves-
+        to-context invariant, and records stats. It performs **no** retrieval or reranking of its
+        own (``retrieve``/``rerank`` timings default to 0 or come from ``upstream_timings_ms``).
 
         Args:
             query_text:   The (original) user query, used for processing + generation + cost.
@@ -317,7 +290,12 @@ class QueryPipeline:
                           to the context chunk ids when not supplied.
             upstream_timings_ms: Optional ``{"retrieve":…, "rerank":…}`` measured by the caller,
                           folded into the returned stats so end-to-end timing stays honest.
+            generator:    Optional generator override. Composable wrappers (decomposition,
+                          iterative) inject their own generator here so they still reuse this
+                          shared tail (context processing + citation invariant + stats) instead
+                          of bypassing it. Defaults to the pipeline's own generator.
         """
+        gen = generator if generator is not None else self._generator
         t_total_start = time.perf_counter()
         normalized = self.analyze(query_text)
 
@@ -328,7 +306,7 @@ class QueryPipeline:
             processed = processor.process(normalized, processed)
 
         t0 = time.perf_counter()
-        answer = self._generator.generate(normalized, processed)
+        answer = gen.generate(normalized, processed)
         t_generate_ms = (time.perf_counter() - t0) * 1000.0
 
         valid_ids = {c.chunk_id for c in processed}
@@ -348,7 +326,7 @@ class QueryPipeline:
             context_texts=[c.text for c in processed],
             answer_text=answer.text,
             embedding_pricing=pricing_for(self._embedding.model_id),
-            generator_pricing=pricing_for(self._generator.model_id),
+            generator_pricing=pricing_for(gen.model_id),
         )
         stats = QueryStats(
             timings_ms=timings,
@@ -356,7 +334,7 @@ class QueryPipeline:
             model_ids={
                 "embedding": self._embedding.model_id,
                 "reranker": self._reranker.model_id,
-                "generator": self._generator.model_id,
+                "generator": gen.model_id,
             },
         )
         return AnsweredQuery(

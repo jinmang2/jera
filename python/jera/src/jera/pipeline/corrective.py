@@ -28,6 +28,7 @@ Architecture
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 from jera.adapters.vector_store.fusion import reciprocal_rank_fusion
@@ -122,14 +123,17 @@ class CorrectiveQueryPipeline:
             retrieve for each variant, RRF-merge all per-variant rankings, take
             top_k, re-attach chunks from the initial retrieval cache.
         (d) Rerank the final candidate set.
-        (e) Drive the generator via ``pipeline.answer_with_contexts`` (which owns
-            the timing/cost/stats instrumentation).  The ``CorrectiveResult`` exposes
-            the corrected contexts and retrieved_ids alongside the pipeline's answer.
+        (e) Generate from those corrected contexts via ``pipeline.generate_from_contexts``
+            (no re-retrieval), passing the measured retrieve/rerank timings so the stats
+            cover the real CRAG work.  ``CorrectiveResult`` exposes the corrected contexts
+            and (pre-rerank) retrieved_ids alongside the answer.
         """
         query = Query(text=query_text, top_k=top_k, mode=mode, fusion=fusion)
 
         # (a) Initial retrieval.
+        t0 = time.perf_counter()
         initial = self._pipeline.retrieve(query)
+        t_retrieve_ms = (time.perf_counter() - t0) * 1000.0
 
         # (b) Grade.
         grade: RetrievalGrade = self._evaluator.grade(query_text, initial)
@@ -138,15 +142,23 @@ class CorrectiveQueryPipeline:
             # Fast path: initial retrieval is good enough — skip correction, but the answer
             # must still be generated from THESE (reranked initial) contexts, not a fresh
             # re-retrieval, so the answer and the reported contexts stay coherent.
+            initial_ids = [sc.chunk_id for sc in initial.results]
+            t0 = time.perf_counter()
             reranked = self._pipeline.rerank(query_text, initial.results, rerank_top_k or top_k)
+            t_rerank_ms = (time.perf_counter() - t0) * 1000.0
             contexts = [sc.chunk for sc in reranked if sc.chunk is not None]
             answered: AnsweredQuery = self._pipeline.generate_from_contexts(
-                query_text, contexts, retrieved_ids=[sc.chunk_id for sc in initial.results]
+                query_text,
+                contexts,
+                retrieved_ids=initial_ids,
+                upstream_timings_ms={"retrieve": t_retrieve_ms, "rerank": t_rerank_ms},
             )
             return CorrectiveResult(
                 answer=answered.answer,
                 contexts=answered.contexts,
-                retrieved_ids=[sc.chunk_id for sc in reranked],
+                # Pre-rerank ranking (matches the corrected path + the field's "pre-rerank"
+                # docstring) so context_precision is measured consistently across both paths.
+                retrieved_ids=initial_ids,
                 grade=grade,
                 corrected=False,
                 stats=answered.stats,
@@ -163,6 +175,7 @@ class CorrectiveQueryPipeline:
         # Keep a cache of all ScoredChunks seen so we can re-attach Chunk objects.
         chunk_cache: dict[str, ScoredChunk] = {sc.chunk_id: sc for sc in initial.results}
 
+        t0 = time.perf_counter()
         for i, variant in enumerate(variants):
             variant_query = Query(text=variant, top_k=top_k, mode=mode, fusion=fusion)
             variant_result = self._pipeline.retrieve(variant_query)
@@ -170,6 +183,7 @@ class CorrectiveQueryPipeline:
             for sc in variant_result.results:
                 if sc.chunk_id not in chunk_cache or chunk_cache[sc.chunk_id].chunk is None:
                     chunk_cache[sc.chunk_id] = sc
+        t_variants_ms = (time.perf_counter() - t0) * 1000.0
 
         fused = reciprocal_rank_fusion(rankings)[:top_k]
 
@@ -188,15 +202,24 @@ class CorrectiveQueryPipeline:
         retrieved_ids = [sc.chunk_id for sc in corrected_scored]
 
         # (d) Rerank the corrected candidate set.
+        t0 = time.perf_counter()
         reranked = self._pipeline.rerank(query_text, corrected_scored, rerank_top_k or top_k)
-        contexts: list[Chunk] = [sc.chunk for sc in reranked if sc.chunk is not None]
+        t_rerank_ms = (time.perf_counter() - t0) * 1000.0
+        contexts = [sc.chunk for sc in reranked if sc.chunk is not None]
 
         # (e) Generate from the CORRECTED contexts. This is the whole point of CRAG: the
         # generator must answer from the corrected evidence, not a fresh vanilla retrieval.
         # (The previous implementation called answer_with_contexts, which re-ran retrieval
         # internally and silently discarded the correction — the answer ignored the lift.)
+        # "retrieve" time = initial + all variant retrievals, so the stats cover the real work.
         answered = self._pipeline.generate_from_contexts(
-            query_text, contexts, retrieved_ids=retrieved_ids
+            query_text,
+            contexts,
+            retrieved_ids=retrieved_ids,
+            upstream_timings_ms={
+                "retrieve": t_retrieve_ms + t_variants_ms,
+                "rerank": t_rerank_ms,
+            },
         )
 
         return CorrectiveResult(

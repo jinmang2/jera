@@ -27,6 +27,10 @@ class ModelPricing:
     free_local: bool = False
 
     def as_dict(self) -> dict[str, float | bool]:
+        # A 0.0 price means "this field is not applicable to this model" (e.g. embeddings have
+        # no output price), so it is omitted. A genuinely free local model must set
+        # free_local=True explicitly — a non-free model with no applicable price is reported as
+        # "unpriced" (a misconfiguration signal), never falsely as free.
         if self.free_local:
             return {"free_local": True}
         out: dict[str, float | bool] = {}
@@ -36,7 +40,7 @@ class ModelPricing:
             out["output_per_mtok"] = self.output_per_mtok
         if self.per_1k_searches:
             out["per_1k_searches"] = self.per_1k_searches
-        return out or {"free_local": True}
+        return out or {"unpriced": True}
 
 
 _FREE = ModelPricing(free_local=True)
