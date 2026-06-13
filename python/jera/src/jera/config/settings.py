@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     reranker_kind: str = "identity"
     mmr_lambda: float = 0.7  # MMRReranker tradeoff: 1.0 = pure relevance, lower = more diverse
 
+    # instruction-tuned embedding (E5/Qwen3): prepend a task instruction to queries
+    embedding_instruction: str | None = None
+
     # M11 advanced retrieval (all opt-in, offline-deterministic)
     use_quantized_store: bool = False  # int8 two-stage quantized vector store (MRL rescore)
     embedding_truncate_dims: int | None = None  # Matryoshka: truncate dense vectors to N dims

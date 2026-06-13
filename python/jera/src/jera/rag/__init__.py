@@ -12,11 +12,13 @@ from jera.adapters.context.compressor import ExtractiveCompressor
 from jera.adapters.context.curator import RedundancyCurator
 from jera.adapters.context.reorderer import LostInTheMiddleReorderer
 from jera.adapters.embedding.hash_multivector import HashMultiVectorEmbedding
+from jera.adapters.embedding.instruction import InstructionEmbedding
 
 # M11 — research-viable deferred techniques: HippoRAG PPR graph retrieval, int8 quantization,
 # listwise reranking, late chunking (all offline-deterministic; real variants opt-in).
 from jera.adapters.embedding.late_chunking import LateChunkingEmbedding
 from jera.adapters.embedding.truncated_dim import TruncatedDimEmbedding
+from jera.adapters.embedding.visual_multivector import VisualMultiVectorEmbedding
 from jera.adapters.evaluation.overlap_evaluator import OverlapRetrievalEvaluator
 from jera.adapters.graph.hippo_retriever import HippoGraphRetriever
 from jera.adapters.graph.regex_entity_extractor import RegexEntityExtractor
@@ -94,6 +96,7 @@ __all__ = [
     "HippoGraphRetriever",
     "IngestPipeline",
     "IngestionJob",
+    "InstructionEmbedding",
     "IterativeResult",
     "IterativeRetrievalPipeline",
     "LateChunkingEmbedding",
@@ -123,6 +126,7 @@ __all__ = [
     "Settings",
     "SourceRef",
     "TruncatedDimEmbedding",
+    "VisualMultiVectorEmbedding",
     "build_gold_dataset",
     "build_system",
 ]

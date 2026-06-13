@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **757 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **765 tests**
 
 </div>
 
@@ -48,6 +48,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M12** | Context quality + eval (researched) | **context-engineering pipeline** — redundancy curation + extractive compression + lost-in-the-middle reorder before generation; **proposition chunking** (atomic units); **iterative multi-turn retrieval** (bridge-following hops); **claim-level eval** (RAGChecker-style: claim precision/recall, noise-sensitivity, citation precision/recall, abstention) |
 | **M13** | Ablation harness | **`AblationRunner`** — score named configurations (baseline / contextual / proposition / multi-query / listwise / context-processing …) on one corpus across retrieval + RAGAS-lite + claim-level metrics; *which technique actually wins, and on what* — answered, not assumed (`scripts/ablation.py`) |
 | **M14a** | Technique profiling | **`run_profile`** across difficulty scenarios (easy / entity-less / multi-fact) — `strength_summary()` shows *which technique wins on what kind of corpus* (honest finding: techniques help on their target difficulty, not universally) (`scripts/profile.py`) |
+| **M14b** | Visual RAG + instruction embed (researched) | **ColPali-style visual late-interaction** (`VisualMultiVectorEmbedding` — image patches → MaxSim, reuses M10 ports; ColModernVBERT/ColQwen opt-in); **instruction-tuned embeddings** (`InstructionEmbedding`, E5/Qwen3 query-prefix convention, steers retrieval) |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -129,8 +130,9 @@ Set via `JERA_*` env vars (default profile = `test`).
   · `listwise` (RankLLM-style whole-list IDF).
 - **Advanced retrieval (M11)** — `JERA_USE_QUANTIZED_STORE=1` (int8 two-stage rescore) ·
   `JERA_EMBEDDING_TRUNCATE_DIMS=N` (Matryoshka truncation) · `JERA_USE_LATE_CHUNKING=1`
-  (`JERA_LATE_CHUNKING_ALPHA`). HippoRAG graph retrieval + listwise/decomposition/CRAG/adaptive
-  wrappers are composable via the `jera.rag` facade.
+  (`JERA_LATE_CHUNKING_ALPHA`) · `JERA_EMBEDDING_INSTRUCTION="..."` (E5/Qwen3 query-prefix steering).
+  HippoRAG graph retrieval, ColPali-style `VisualMultiVectorEmbedding`, and the
+  listwise/decomposition/CRAG/adaptive wrappers are composable via the `jera.rag` facade.
 - `*` cloud adapters are disabled unless `JERA_ENABLE_CLOUD=1` + the matching key.
 
 ```bash

@@ -257,6 +257,11 @@ def _build_query_transformer(settings: Settings) -> QueryTransformer | None:
 
 def _build_embedding(settings: Settings) -> EmbeddingProvider:
     base = _build_base_embedding(settings)
+    # Instruction-tuned wrapper (query-side task prefix) goes innermost so later wrappers see it.
+    if settings.embedding_instruction is not None:
+        from jera.adapters.embedding.instruction import InstructionEmbedding
+
+        base = InstructionEmbedding(base, task=settings.embedding_instruction)
     # M11 opt-in wrappers (order: truncate dims first, then late-chunking pools the truncated vecs).
     if settings.embedding_truncate_dims is not None:
         from jera.adapters.embedding.truncated_dim import TruncatedDimEmbedding
