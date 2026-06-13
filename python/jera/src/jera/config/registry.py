@@ -238,6 +238,20 @@ def _build_query_transformer(settings: Settings) -> QueryTransformer | None:
 
 
 def _build_embedding(settings: Settings) -> EmbeddingProvider:
+    base = _build_base_embedding(settings)
+    # M11 opt-in wrappers (order: truncate dims first, then late-chunking pools the truncated vecs).
+    if settings.embedding_truncate_dims is not None:
+        from jera.adapters.embedding.truncated_dim import TruncatedDimEmbedding
+
+        base = TruncatedDimEmbedding(base, dims=settings.embedding_truncate_dims)
+    if settings.use_late_chunking:
+        from jera.adapters.embedding.late_chunking import LateChunkingEmbedding
+
+        base = LateChunkingEmbedding(base, alpha=settings.late_chunking_alpha)
+    return base
+
+
+def _build_base_embedding(settings: Settings) -> EmbeddingProvider:
     if settings.profile is Profile.LOCAL:
         from jera.adapters.embedding.fastembed_embedding import FastEmbedEmbedding
 
@@ -264,6 +278,10 @@ def _build_vector_store(settings: Settings) -> VectorStore:
         from jera.adapters.vector_store.qdrant_store import QdrantVectorStore
 
         return QdrantVectorStore(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+    if settings.use_quantized_store:
+        from jera.adapters.vector_store.quantized_in_memory import QuantizedInMemoryVectorStore
+
+        return QuantizedInMemoryVectorStore()
     return InMemoryVectorStore()
 
 
@@ -281,6 +299,10 @@ def _build_reranker(settings: Settings, embedding: EmbeddingProvider) -> Reranke
         from jera.adapters.ranking.mmr_reranker import MMRReranker
 
         return MMRReranker(embedding, lambda_=settings.mmr_lambda)
+    if settings.reranker_kind == "listwise":
+        from jera.adapters.ranking.listwise_reranker import ListwiseReranker
+
+        return ListwiseReranker()
     if settings.profile is Profile.LOCAL:
         from jera.adapters.ranking.fastembed_reranker import FastEmbedReranker
 

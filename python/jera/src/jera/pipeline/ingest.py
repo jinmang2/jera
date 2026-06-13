@@ -119,8 +119,11 @@ class IngestPipeline:
         # Index the contextualized text (context + chunk) for both dense and sparse — this is
         # the Contextual Embeddings + Contextual BM25 of Anthropic's recipe. Without a
         # contextualizer, embedding_text == text, so indexing is unchanged.
+        # `chunks` is one document's chunks (called per-source), so a late-chunking embedding
+        # can pool neighboring chunks' context into each dense vector via embed_document_chunks.
         texts = [c.embedding_text for c in chunks]
-        dense = self._embedding.embed(texts)
+        embed_document = getattr(self._embedding, "embed_document_chunks", None)
+        dense = embed_document(texts) if callable(embed_document) else self._embedding.embed(texts)
         sparse = self._sparse.encode(texts)
         records = [
             VectorRecord(

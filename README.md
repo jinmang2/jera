@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **594 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **657 tests**
 
 </div>
 
@@ -44,6 +44,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M8** | Hardening (no stopgaps) | every opt-in cloud/vendor adapter **verified by SDK-boundary tests** (real request/response logic, no keys); real `ClaudeToolUseGenerator` wired + **`pause_turn`** handled; real per-model **pricing** (no `cost_metadata` placeholder); **genuine offline Korean eval dataset** (real chunks/gold, replacing the scaffold) |
 | **M9** | Lifecycle + observability | **idempotent re-ingest** (no duplicates) + document **delete** (cascades to vectors); document/job API (`GET /documents`, `GET/DELETE /documents/{id}`, `GET /jobs/{id}`); per-query **timing + cost** stats on `/query` |
 | **M10** | 2025–26 SOTA (researched) | **late-interaction ColBERT MaxSim** retrieval (multi-vector ports); **Corrective RAG** (retrieval-grader → corrective re-query); **Adaptive-RAG** query-complexity router (skips retrieval when unneeded); **sub-question decomposition** (sequential multi-hop) — all offline-deterministic with non-tautological tests |
+| **M11** | 2025–26 SOTA (researched) | **HippoRAG** PPR graph retrieval (entity graph + pure-Python PageRank, multi-hop); **MRL + int8** two-stage quantized store (rescore-corrected); **listwise** reranking (RankLLM-style, whole-list IDF; Claude permutation opt-in); **late chunking** (context-mixed chunk embeddings, orthogonal to M6) |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -115,8 +116,12 @@ Set via `JERA_*` env vars (default profile = `test`).
 - **Multi-query retrieval** — `JERA_USE_QUERY_TRANSFORM=1` expands the query and RRF-fuses the
   per-variant rankings; `JERA_QUERY_TRANSFORM_KIND` ∈ `rule_based` (clause decomposition, offline)
   · `hyde` (HyDE hypothetical-answer, `[cloud]`).
-- **Reranker** — `JERA_RERANKER_KIND=mmr` swaps the identity reranker for **MMR** diversity
-  (`JERA_MMR_LAMBDA`, 1.0 = pure relevance, lower = more diverse).
+- **Reranker** — `JERA_RERANKER_KIND` ∈ `identity` (default) · `mmr` (diversity, `JERA_MMR_LAMBDA`)
+  · `listwise` (RankLLM-style whole-list IDF).
+- **Advanced retrieval (M11)** — `JERA_USE_QUANTIZED_STORE=1` (int8 two-stage rescore) ·
+  `JERA_EMBEDDING_TRUNCATE_DIMS=N` (Matryoshka truncation) · `JERA_USE_LATE_CHUNKING=1`
+  (`JERA_LATE_CHUNKING_ALPHA`). HippoRAG graph retrieval + listwise/decomposition/CRAG/adaptive
+  wrappers are composable via the `jera.rag` facade.
 - `*` cloud adapters are disabled unless `JERA_ENABLE_CLOUD=1` + the matching key.
 
 ```bash

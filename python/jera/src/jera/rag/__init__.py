@@ -7,10 +7,19 @@ external adapters should depend on. ``apps/api/app`` imports from here, never fr
 # M10 — 2025-26 SOTA: late-interaction retrieval + agentic orchestration (CRAG / Adaptive-RAG /
 # decomposition). Each is a port + offline adapter + a thin wrapper over QueryPipeline.
 from jera.adapters.embedding.hash_multivector import HashMultiVectorEmbedding
+
+# M11 — research-viable deferred techniques: HippoRAG PPR graph retrieval, int8 quantization,
+# listwise reranking, late chunking (all offline-deterministic; real variants opt-in).
+from jera.adapters.embedding.late_chunking import LateChunkingEmbedding
+from jera.adapters.embedding.truncated_dim import TruncatedDimEmbedding
 from jera.adapters.evaluation.overlap_evaluator import OverlapRetrievalEvaluator
+from jera.adapters.graph.hippo_retriever import HippoGraphRetriever
+from jera.adapters.graph.regex_entity_extractor import RegexEntityExtractor
 from jera.adapters.query.connective_decomposer import ConnectiveDecomposer
 from jera.adapters.query.heuristic_router import HeuristicQueryRouter
+from jera.adapters.ranking.listwise_reranker import ClaudeListwiseReranker, ListwiseReranker
 from jera.adapters.vector_store.maxsim_store import MaxSimVectorStore
+from jera.adapters.vector_store.quantized_in_memory import QuantizedInMemoryVectorStore
 from jera.config import Profile, RagSystem, Settings, build_system
 from jera.domain import (
     Answer,
@@ -38,6 +47,8 @@ from jera.pipeline import IngestPipeline, QueryPipeline
 from jera.pipeline.adaptive import AdaptiveAnsweredQuery, AdaptiveQueryPipeline
 from jera.pipeline.corrective import CorrectiveQueryPipeline, CorrectiveResult
 from jera.pipeline.decompositional import DecompositionalQueryPipeline, DecompositionalResult
+from jera.ports.entity_extractor import EntityExtractor
+from jera.ports.graph_retriever import GraphRetriever
 from jera.ports.multi_vector_embedding import MultiVectorEmbedding
 from jera.ports.multi_vector_store import MultiVectorStore
 from jera.ports.query_decomposer import QueryDecomposer
@@ -51,21 +62,27 @@ __all__ = [
     "CaseSpec",
     "Chunk",
     "Citation",
+    "ClaudeListwiseReranker",
     "ConnectiveDecomposer",
     "CorrectiveQueryPipeline",
     "CorrectiveResult",
     "DecompositionalQueryPipeline",
     "DecompositionalResult",
     "DocumentInfo",
+    "EntityExtractor",
     "EvalReport",
     "EvalRunner",
     "FusionMethod",
     "GenerationEvalRunner",
     "GenerationReport",
+    "GraphRetriever",
     "HashMultiVectorEmbedding",
     "HeuristicQueryRouter",
+    "HippoGraphRetriever",
     "IngestPipeline",
     "IngestionJob",
+    "LateChunkingEmbedding",
+    "ListwiseReranker",
     "MaxSimVectorStore",
     "MediaType",
     "MultiVectorEmbedding",
@@ -73,18 +90,21 @@ __all__ = [
     "OverlapRetrievalEvaluator",
     "ParsedDocument",
     "Profile",
+    "QuantizedInMemoryVectorStore",
     "Query",
     "QueryComplexity",
     "QueryDecomposer",
     "QueryPipeline",
     "QueryRouter",
     "RagSystem",
+    "RegexEntityExtractor",
     "RetrievalEvaluator",
     "RetrievalGrade",
     "RetrievalMode",
     "ScoredChunk",
     "Settings",
     "SourceRef",
+    "TruncatedDimEmbedding",
     "build_gold_dataset",
     "build_system",
 ]

@@ -1,0 +1,399 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1781277146877,
+  "projectRoot": "/home/jinmang2/jera",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "cd /home/jinmang2/jera\ngit commit -q -F - <<'EOF'\nfeat: M10 — researched 2025-26 SOTA: ColBERT late-interaction + CRAG + Adaptive-RAG + decomposition\n\nResearch-driven milestone. 3 parallel document-specialist agents web-researched\n2025-26 RAG SOTA (retrieval / agentic / structure+eval); synthesized; picked the\ntechniques that are genuinely SOTA, CI-realizable offline-deterministic, and\nnon-tautologically testable. Implemented by 4 parallel executors + inline facade\nwiring. (Deferred as heavy: HippoRAG/GraphRAG, MRL+int8 quant, RankLLM, late\nchunking. Skipped as fine-tuning/logprob-bound: Self-RAG, FLARE, CoRAG, DeepRAG.)\n\nLate-interaction retrieval — ColBERT MaxSim (ColBERTv2; PLAID; Col-Bandit'26):\n- new MultiVectorEmbedding + MultiVectorStore ports; HashMultiVectorEmbedding\n  (per-token vectors seeded by sha1(token)); MaxSimVectorStore (pure-python\n  Sum_q max_d cosine). Test proves per-token max beats a single-vector bag.\n\nCorrective RAG / CRAG (Yan et al., ICLR 2025):\n- RetrievalEvaluator port + RetrievalGrade + OverlapRetrievalEvaluator (score\n  gate + Jaccard, no LLM); CorrectiveQueryPipeline (grade -> if weak, transform +\n  re-retrieve + RRF). Test: a scientific-vocab chunk goes 0 -> recall@1 via correction.\n\nAdaptive-RAG router (Jeong NAACL'24; RAGRouter-Bench'26):\n- QueryRouter port + QueryComplexity + HeuristicQueryRouter + AdaptiveQueryPipeline\n  (NO_RETRIEVAL skips vector search). Test: counting proxy proves 0 searches.\n\nSub-question decomposition (Pereira, ACL-SRW 2025):\n- QueryDecomposer port + ConnectiveDecomposer + DecompositionalQueryPipeline\n  (sequential retrieve per sub-question -> accumulate -> single generate). Test:\n  multi-hop Eiffel->Paris->France, single-step covers 1 chunk, decomposed covers both.\n\nAll real-model/LLM-judge variants are opt-in; exported via the jera.rag facade.\nGates green offline: ruff + format + mypy --strict (126 files) + pytest\n594 passed / 8 skipped (was 536).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\nEOF\ngit push origin main 2>&1 | tail -3 && git log --oneline -1",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "apps": {
+      "path": "apps",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1781277146865,
+      "keyFiles": []
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1781277146865,
+      "keyFiles": []
+    },
+    "python": {
+      "path": "python",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1781277146866,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 5,
+      "lastAccessed": 1781277146866,
+      "keyFiles": [
+        "build_eval_dataset.py",
+        "eval.py",
+        "eval_local_matrix.py",
+        "fetch_corpus.py",
+        "gates.sh"
+      ]
+    },
+    "apps/api": {
+      "path": "apps/api",
+      "purpose": "API routes",
+      "fileCount": 1,
+      "lastAccessed": 1781277146867,
+      "keyFiles": [
+        "pyproject.toml"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "README.md",
+      "accessCount": 21,
+      "lastAccessed": 1781319779495,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_cloud_vendor_adapters.py",
+      "accessCount": 10,
+      "lastAccessed": 1781291015193,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/config/registry.py",
+      "accessCount": 8,
+      "lastAccessed": 1781319167966,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/retrieval.py",
+      "accessCount": 7,
+      "lastAccessed": 1781320362672,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_multi_query_retrieval.py",
+      "accessCount": 6,
+      "lastAccessed": 1781319163722,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/contextual/claude_situate_llm.py",
+      "accessCount": 5,
+      "lastAccessed": 1781290658031,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_cloud_anthropic_adapters.py",
+      "accessCount": 5,
+      "lastAccessed": 1781290892166,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/metadata_store/sql_store.py",
+      "accessCount": 4,
+      "lastAccessed": 1781290650026,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/vector_store/qdrant_store.py",
+      "accessCount": 4,
+      "lastAccessed": 1781291003855,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/conftest.py",
+      "accessCount": 4,
+      "lastAccessed": 1781319172202,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/chunk.py",
+      "accessCount": 4,
+      "lastAccessed": 1781320330508,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/evaluation_contracts/generation_metrics.py",
+      "accessCount": 3,
+      "lastAccessed": 1781281041466,
+      "type": "file"
+    },
+    {
+      "path": "scripts/eval.py",
+      "accessCount": 3,
+      "lastAccessed": 1781283423842,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/sparse/fastembed_sparse.py",
+      "accessCount": 3,
+      "lastAccessed": 1781291010242,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/ports/vector_store.py",
+      "accessCount": 3,
+      "lastAccessed": 1781319133133,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/answer.py",
+      "accessCount": 3,
+      "lastAccessed": 1781319163889,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/metadata_store/models.py",
+      "accessCount": 2,
+      "lastAccessed": 1781280923823,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_contextual_retrieval.py",
+      "accessCount": 2,
+      "lastAccessed": 1781280988786,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/rag/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1781283392399,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/contextual/llm_contextualizer.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290619493,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/tooluse/llm.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290650929,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/generator/claude_generator.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290656985,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/query/claude_hypothesis_llm.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290659171,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/evaluation_contracts/dataset.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290665542,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/jobs.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290745915,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/config/pricing.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290795377,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_providers.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290808245,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_korean_dataset.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290866110,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/embedding/openai_embedding.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290984989,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/ranking/cohere_reranker.py",
+      "accessCount": 2,
+      "lastAccessed": 1781290990083,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/embedding/fastembed_embedding.py",
+      "accessCount": 2,
+      "lastAccessed": 1781291012623,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/ranking/fastembed_reranker.py",
+      "accessCount": 2,
+      "lastAccessed": 1781291017604,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_generation_metrics.py",
+      "accessCount": 1,
+      "lastAccessed": 1781280995433,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_generation_runner.py",
+      "accessCount": 1,
+      "lastAccessed": 1781283345668,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_query_transformer.py",
+      "accessCount": 1,
+      "lastAccessed": 1781284916591,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/tooluse/runtime.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290614915,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_tooluse.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290618558,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/parsing/docling_parser.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290645880,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/metadata_store/postgres_store.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290649751,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/vectors.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290654349,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_eval_runner.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290660863,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_docling_parser.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290664382,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/evaluation/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290664736,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/domain/document.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290672009,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_storage.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290672321,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/src/jera/adapters/metadata_store/sqlite_store.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290676400,
+      "type": "file"
+    },
+    {
+      "path": "data/corpus/korean_research/bok_outlook.md",
+      "accessCount": 1,
+      "lastAccessed": 1781290703761,
+      "type": "file"
+    },
+    {
+      "path": "data/corpus/korean_research/kdi_cpi.md",
+      "accessCount": 1,
+      "lastAccessed": 1781290719448,
+      "type": "file"
+    },
+    {
+      "path": "data/corpus/korean_research/kcmi_market.md",
+      "accessCount": 1,
+      "lastAccessed": 1781290732424,
+      "type": "file"
+    },
+    {
+      "path": "python/jera/tests/unit/test_pricing.py",
+      "accessCount": 1,
+      "lastAccessed": 1781290758333,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

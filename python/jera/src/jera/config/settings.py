@@ -61,9 +61,15 @@ class Settings(BaseSettings):
     use_query_transform: bool = False
     query_transform_kind: str = "rule_based"  # rule_based (offline) | hyde (opt-in, needs cloud)
 
-    # reranker back-end (test/in-memory): "identity" (default, passthrough) | "mmr" (diversity)
+    # reranker back-end: "identity" (default) | "mmr" (diversity) | "listwise" (RankLLM-style)
     reranker_kind: str = "identity"
     mmr_lambda: float = 0.7  # MMRReranker tradeoff: 1.0 = pure relevance, lower = more diverse
+
+    # M11 advanced retrieval (all opt-in, offline-deterministic)
+    use_quantized_store: bool = False  # int8 two-stage quantized vector store (MRL rescore)
+    embedding_truncate_dims: int | None = None  # Matryoshka: truncate dense vectors to N dims
+    use_late_chunking: bool = False  # context-mixed chunk embeddings (Jina late chunking)
+    late_chunking_alpha: float = 0.3  # late-chunking neighbor-context mix weight
 
     # local profile model overrides (None → adapter picks its own default)
     # local dense default: BAAI/bge-m3 (1024-dim multilingual)
