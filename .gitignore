@@ -25,3 +25,6 @@ data/corpus/*.pdf
 # nested OMC runtime state (tools run from subdirs)
 **/.omc/state/
 **/.omc/logs/
+
+# Third-party analyst reports (local research scratch — not redistributable)
+.omc/research/analyst/
