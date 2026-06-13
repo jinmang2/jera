@@ -21,6 +21,7 @@ from jera.evaluation.generation_runner import GenerationEvalRunner
 from jera.evaluation.gold_builder import ClaudeGoldGenerator, operand_in_chunk
 from jera.evaluation.matrix import MatrixReport, StrategyEntry, run_matrix
 from jera.evaluation.parser_bench import ParserBenchReport, ParserBenchResult, grade
+from jera.evaluation.profiling import CorpusScenario, ProfileReport, run_profile
 from jera.evaluation.report import (
     CaseResult,
     EvalReport,
@@ -37,6 +38,8 @@ __all__ = [
     "AblationReport",
     "AblationRunner",
     "CaseResult",
+    "CorpusScenario",
+    "ProfileReport",
     "CaseSpec",
     "ClaudeGoldGenerator",
     "ComputationCaseResult",
@@ -56,4 +59,5 @@ __all__ = [
     "grade",
     "operand_in_chunk",
     "run_matrix",
+    "run_profile",
 ]
