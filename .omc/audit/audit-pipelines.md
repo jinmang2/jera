@@ -69,6 +69,10 @@ but they could route through `generate_from_contexts` for consistency in a futur
 | **Instruction embedding** (`instruction.py`) | E5-instruct / Qwen3-Embedding | `Instruct: {task}\nQuery: {text}`, query-only asymmetric — **verbatim** convention. CORRECT |
 | **Proposition chunking** (`proposition.py`) | Chen et al. EMNLP 2024 | Honestly labeled: real paper uses a Flan-T5 Propositionizer; Jera's is a deterministic "one sentence = one proposition" approximation + heading-breadcrumb self-containment. CORRECT (honest) |
 | **CRAG grader** (`overlap_evaluator.py`) | Yan et al. 2025 | Faithfully maps CRAG's three actions (CORRECT/AMBIGUOUS/INCORRECT) via score+Jaccard gates; paper's fine-tuned evaluator honestly noted as future opt-in. CORRECT (honest) |
+| **Extractive compressor** (`compressor.py`) | RECOMP arXiv:2310.04408 / EXIT arXiv:2412.12559 | Sentence-overlap compression above per-chunk mean + min-keep. **char_span staleness honestly documented** (provenance preserved, citations resolve by chunk_id — verified in query.py; token_count updated). CORRECT (honest) |
+| **Redundancy curator** (`curator.py`) | AdaGReS arXiv:2512.25052 | Non-mutating greedy keep-first token-Jaccard dedup; honestly the "dedup half" of AdaGReS. CORRECT (honest) |
+| **HyDE** (`hyde.py`) | Gao et al. 2022 | Honestly labeled: returns [original, hypothesis] for multi-query RRF "in addition to" classic hypothesis-only retrieval. CORRECT (honest) |
+| **Semantic chunker** (`semantic.py`) | LlamaIndex SemanticSplitter | Embed sentences → consecutive cosine distance → split above percentile + token cap; char_span correctly sliced from sentence offsets. CORRECT |
 
 ---
 
