@@ -27,6 +27,7 @@ from jera.domain.jobs import ProviderConfigSnapshot
 from jera.pipeline.ingest import IngestPipeline
 from jera.pipeline.query import QueryPipeline
 from jera.ports.chunker import Chunker
+from jera.ports.context_processor import ContextProcessor
 from jera.ports.contextualizer import Contextualizer
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
@@ -85,6 +86,7 @@ def build_system(settings: Settings | None = None) -> RagSystem:
         generator=generator,
         collection=settings.collection,
         query_transformer=query_transformer,
+        context_processors=_build_context_processors(settings),
     )
 
     metadata_store.save_config_snapshot(
@@ -188,7 +190,23 @@ def _build_chunker(settings: Settings, embedding: EmbeddingProvider) -> Chunker:
         return HeadingAwareChunker(
             max_tokens=settings.max_tokens, overlap_tokens=settings.overlap_tokens
         )
+    if settings.chunk_strategy == "proposition":
+        from jera.adapters.chunking.proposition import PropositionChunker
+
+        return PropositionChunker()
     raise ValueError(f"unknown chunk_strategy {settings.chunk_strategy!r}")
+
+
+def _build_context_processors(settings: Settings) -> list[ContextProcessor]:
+    """Context-engineering chain (M12), applied to retrieved chunks before generation:
+    curate near-duplicates → extractively compress → reorder so the best land at the edges."""
+    if not settings.use_context_processing:
+        return []
+    from jera.adapters.context.compressor import ExtractiveCompressor
+    from jera.adapters.context.curator import RedundancyCurator
+    from jera.adapters.context.reorderer import LostInTheMiddleReorderer
+
+    return [RedundancyCurator(), ExtractiveCompressor(), LostInTheMiddleReorderer()]
 
 
 def _build_contextualizer(settings: Settings) -> Contextualizer | None:

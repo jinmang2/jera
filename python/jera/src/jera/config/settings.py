@@ -46,9 +46,13 @@ class Settings(BaseSettings):
     clova_secret: str | None = None
 
     # chunking
-    chunk_strategy: str = "heading_aware"  # heading_aware | semantic | hierarchical
+    chunk_strategy: str = "heading_aware"  # heading_aware | semantic | hierarchical | proposition
     max_tokens: int = 180
     overlap_tokens: int = 40
+
+    # context engineering (M12) — process retrieved chunks before generation:
+    # redundancy curation → extractive compression → lost-in-the-middle reorder
+    use_context_processing: bool = False
 
     # contextual retrieval (Anthropic, 2024) — situate chunks before embedding/indexing
     use_contextual_retrieval: bool = False

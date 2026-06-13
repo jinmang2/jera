@@ -7,6 +7,7 @@ retrieval gate can exercise each, plus ``answer`` for the full E2E path.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ from jera.domain.retrieval import (
     RetrievalResult,
     ScoredChunk,
 )
+from jera.ports.context_processor import ContextProcessor
 from jera.ports.embedding import EmbeddingProvider
 from jera.ports.generator import GeneratorLLM
 from jera.ports.metadata_store import MetadataStore
@@ -109,6 +111,7 @@ class QueryPipeline:
         generator: GeneratorLLM,
         collection: str,
         query_transformer: QueryTransformer | None = None,
+        context_processors: Sequence[ContextProcessor] | None = None,
     ) -> None:
         self._embedding = embedding
         self._sparse = sparse
@@ -120,6 +123,9 @@ class QueryPipeline:
         # Multi-query retrieval (off unless set): expand the query into variants, retrieve each,
         # and RRF-fuse the rankings. The answer path uses it automatically when present.
         self._query_transformer = query_transformer
+        # Context engineering (off unless set): processors applied in order to the reranked
+        # contexts before generation (curate → compress → reorder).
+        self._context_processors: tuple[ContextProcessor, ...] = tuple(context_processors or ())
 
     @property
     def embedding(self) -> EmbeddingProvider:
@@ -248,6 +254,11 @@ class QueryPipeline:
             assert sc.chunk_id in retrieved_id_set, "rerank introduced a non-retrieved chunk"
             if sc.chunk is not None:
                 contexts.append(sc.chunk)
+
+        # Context engineering (M12, off unless configured): curate → compress → reorder. Each
+        # processor preserves chunk_id (compression only trims text), so citations still resolve.
+        for processor in self._context_processors:
+            contexts = processor.process(self.analyze(query_text), contexts)
 
         t0 = time.perf_counter()
         answer = self._generator.generate(self.analyze(query_text), contexts)

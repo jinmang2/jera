@@ -14,19 +14,33 @@ from jera.evaluation_contracts.metrics import (
     numeric_accuracy,
     recall_at_k,
 )
+from jera.evaluation_contracts.ragchecker_metrics import (
+    abstention_score,
+    citation_precision,
+    citation_recall,
+    claim_precision,
+    claim_recall,
+    noise_sensitivity,
+)
 
 __all__ = [
     "CaseKind",
     "EvalCase",
     "EvalDataset",
     "GoldChunk",
+    "abstention_score",
     "answer_correctness",
     "answer_relevance",
     "citation_faithfulness",
+    "citation_precision",
+    "citation_recall",
+    "claim_precision",
+    "claim_recall",
     "context_precision",
     "faithfulness",
     "mrr",
     "ndcg_at_k",
+    "noise_sensitivity",
     "numeric_accuracy",
     "recall_at_k",
 ]

@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **657 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **751 tests**
 
 </div>
 
@@ -45,6 +45,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M9** | Lifecycle + observability | **idempotent re-ingest** (no duplicates) + document **delete** (cascades to vectors); document/job API (`GET /documents`, `GET/DELETE /documents/{id}`, `GET /jobs/{id}`); per-query **timing + cost** stats on `/query` |
 | **M10** | 2025–26 SOTA (researched) | **late-interaction ColBERT MaxSim** retrieval (multi-vector ports); **Corrective RAG** (retrieval-grader → corrective re-query); **Adaptive-RAG** query-complexity router (skips retrieval when unneeded); **sub-question decomposition** (sequential multi-hop) — all offline-deterministic with non-tautological tests |
 | **M11** | 2025–26 SOTA (researched) | **HippoRAG** PPR graph retrieval (entity graph + pure-Python PageRank, multi-hop); **MRL + int8** two-stage quantized store (rescore-corrected); **listwise** reranking (RankLLM-style, whole-list IDF; Claude permutation opt-in); **late chunking** (context-mixed chunk embeddings, orthogonal to M6) |
+| **M12** | Context quality + eval (researched) | **context-engineering pipeline** — redundancy curation + extractive compression + lost-in-the-middle reorder before generation; **proposition chunking** (atomic units); **iterative multi-turn retrieval** (bridge-following hops); **claim-level eval** (RAGChecker-style: claim precision/recall, noise-sensitivity, citation precision/recall, abstention) |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -104,7 +105,11 @@ Set via `JERA_*` env vars (default profile = `test`).
 | `local` | fastembed bge-m3 `[local]` | fastembed SPLADE `[local]` | in-memory | SQLite file | bge-reranker `[local]` | extractive / tool-use |
 | `prod`  | OpenAI `[cloud]`* | (sparse) | Qdrant `[qdrant]` | Postgres `[postgres]` | Cohere `[cloud]`* | Claude `[cloud]`* |
 
-- **Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic` · `hierarchical`.
+- **Chunking** — `JERA_CHUNK_STRATEGY` ∈ `heading_aware` (default) · `semantic` · `hierarchical` ·
+  `proposition` (atomic sentence-level units).
+- **Context engineering (M12)** — `JERA_USE_CONTEXT_PROCESSING=1` processes retrieved chunks before
+  generation: redundancy curation → extractive compression → lost-in-the-middle reorder. Iterative
+  multi-turn retrieval + claim-level eval metrics are composable via the `jera.rag` facade.
 - **Parsing** — `JERA_USE_DOCLING=1` (layout/table/OCR, `[docling]`) · `JERA_USE_ROUTING_PDF=1`
   (per-page text\|OCR routing with provenance) · `JERA_USE_OPENDATALOADER=1` (`[opendataloader]`,
   Java 11+) · `JERA_USE_CAMELOT=1` (table extraction, `[tables]`). HWPX parses with **stdlib only**;
