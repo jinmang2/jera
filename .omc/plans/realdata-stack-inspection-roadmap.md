@@ -86,4 +86,7 @@ Latin-oriented CI analogues; measure real Korean retrieval/rerank quality on the
 Ingest the first real report through Jera's pipeline and **measure what survives vs breaks across the
 three content modes** — that measurement, not speculation, sets the W1–W5 priority order.
 
-Local research scratch (gitignored, not redistributable): `.omc/research/analyst/`.
+Note: the third-party report itself is **not retained** (raw PDF/extracts removed after analysis,
+per user). `.omc/research/analyst/` stays gitignored as a guard so future report files are never
+committed. When the deep-dive starts, the report is re-fetched/re-supplied on demand, used, and not
+persisted to the repo.
