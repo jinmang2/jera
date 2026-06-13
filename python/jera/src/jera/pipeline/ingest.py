@@ -72,6 +72,12 @@ class IngestPipeline:
             )
             try:
                 document = self._parsers.parse(source)
+                # Idempotent re-ingest: a source's document_id is deterministic, so re-ingesting
+                # drops any chunks/vectors from the prior ingest before re-indexing (otherwise
+                # content edits would leave orphaned chunks with stale ids).
+                stale_ids = self._meta.delete_document(document.document_id)
+                if stale_ids:
+                    self._vectors.delete(self._collection, stale_ids)
                 self._meta.save_document(document)
                 chunks = self._chunker.chunk(document)
                 if self._contextualizer is not None and chunks:

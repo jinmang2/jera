@@ -52,6 +52,8 @@ class VectorStore(Protocol):
 
     def upsert(self, collection: str, records: Sequence[VectorRecord]) -> None: ...
 
+    def delete(self, collection: str, chunk_ids: Sequence[str]) -> None: ...
+
     def search(
         self,
         collection: str,

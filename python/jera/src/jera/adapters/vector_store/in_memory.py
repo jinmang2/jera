@@ -35,6 +35,14 @@ class InMemoryVectorStore:
         for rec in records:
             store[rec.chunk_id] = rec
 
+    def delete(self, collection: str, chunk_ids: Sequence[str]) -> None:
+        """Remove chunk_ids from collection.  No-op for unknown collection or missing ids."""
+        store = self._records.get(collection)
+        if store is None:
+            return
+        for cid in chunk_ids:
+            store.pop(cid, None)
+
     def search(
         self,
         collection: str,

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from jera.domain.chunk import Chunk
-from jera.domain.document import ParsedDocument
+from jera.domain.document import DocumentInfo, ParsedDocument
 from jera.domain.jobs import IngestionJob, ProviderConfigSnapshot
 
 
@@ -16,6 +16,16 @@ class MetadataStore(Protocol):
 
     # documents
     def save_document(self, document: ParsedDocument) -> None: ...
+
+    def list_documents(self) -> list[DocumentInfo]: ...
+
+    def get_document_info(self, document_id: str) -> DocumentInfo | None: ...
+
+    def delete_document(self, document_id: str) -> list[str]: ...
+
+    def chunk_ids_for_document(self, document_id: str) -> list[str]: ...
+
+    def document_id_for_source(self, source_id: str) -> str | None: ...
 
     # chunks
     def save_chunks(self, chunks: Sequence[Chunk]) -> None: ...

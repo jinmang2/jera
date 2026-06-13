@@ -62,6 +62,19 @@ class QdrantVectorStore:
             )
         self._client.upsert(collection_name=collection, points=points)
 
+    def delete(self, collection: str, chunk_ids: Sequence[str]) -> None:  # pragma: no cover
+        """Delete points by chunk_id from a Qdrant collection.
+
+        Uses ``QdrantClient.delete`` with a ``PointIdsList`` selector.
+        Idempotent: Qdrant ignores ids that do not exist.
+        """
+        from qdrant_client import models
+
+        self._client.delete(
+            collection_name=collection,
+            points_selector=models.PointIdsList(points=list(chunk_ids)),
+        )
+
     def search(
         self,
         collection: str,

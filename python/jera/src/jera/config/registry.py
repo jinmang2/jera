@@ -48,6 +48,7 @@ class RagSystem:
     reranker: Reranker
     generator: GeneratorLLM
     vector_store: VectorStore
+    collection: str
 
 
 def build_system(settings: Settings | None = None) -> RagSystem:
@@ -115,6 +116,7 @@ def build_system(settings: Settings | None = None) -> RagSystem:
         reranker=reranker,
         generator=generator,
         vector_store=vector_store,
+        collection=settings.collection,
     )
 
 

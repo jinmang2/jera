@@ -4,6 +4,7 @@ from jera.domain.answer import Answer, Citation
 from jera.domain.chunk import Chunk
 from jera.domain.document import (
     DocumentElement,
+    DocumentInfo,
     ElementType,
     MediaType,
     PageSpan,
@@ -28,6 +29,7 @@ __all__ = [
     "Chunk",
     "DenseVector",
     "DocumentElement",
+    "DocumentInfo",
     "ElementType",
     "FusionMethod",
     "IngestionJob",

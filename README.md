@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **488 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **536 tests**
 
 </div>
 
@@ -42,6 +42,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M6** | Contextual retrieval + gen-eval | Anthropic **Contextual Retrieval** (situate chunks → Contextual Embeddings + Contextual BM25; deterministic heuristic in CI, Claude opt-in); **RAGAS-lite** generation metrics (faithfulness / answer-relevance / answer-correctness / context-precision), wired into the eval harness |
 | **M7** | Retrieval & answer quality | **MMR** diversity reranker (λ relevance/diversity); **multi-query retrieval** (rule-based decomposition + **HyDE** opt-in, RRF-fused); generation metrics in the strategy matrix |
 | **M8** | Hardening (no stopgaps) | every opt-in cloud/vendor adapter **verified by SDK-boundary tests** (real request/response logic, no keys); real `ClaudeToolUseGenerator` wired + **`pause_turn`** handled; real per-model **pricing** (no `cost_metadata` placeholder); **genuine offline Korean eval dataset** (real chunks/gold, replacing the scaffold) |
+| **M9** | Lifecycle + observability | **idempotent re-ingest** (no duplicates) + document **delete** (cascades to vectors); document/job API (`GET /documents`, `GET/DELETE /documents/{id}`, `GET /jobs/{id}`); per-query **timing + cost** stats on `/query` |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -84,7 +85,11 @@ curl -s localhost:8000/ingest -H 'content-type: application/json' \
   -d '{"source_id":"d1","media_type":"text/markdown","text":"# Title\n\nHybrid retrieval uses reciprocal rank fusion."}'
 
 curl -s localhost:8000/query -H 'content-type: application/json' \
-  -d '{"query":"what does hybrid retrieval use?","top_k":3}'
+  -d '{"query":"what does hybrid retrieval use?","top_k":3}'   # response includes per-stage timing + cost stats
+
+curl -s localhost:8000/documents                  # list ingested documents (+ chunk counts)
+curl -s localhost:8000/jobs/<job_id>              # poll an ingestion job
+curl -s -X DELETE localhost:8000/documents/<id>   # delete a document (cascades to its vectors)
 ```
 
 ## Profiles & configuration

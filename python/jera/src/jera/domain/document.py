@@ -127,3 +127,14 @@ class ParsedDocument(BaseModel):
 
     def element_by_id(self, element_id: str) -> DocumentElement | None:
         return next((e for e in self.elements if e.element_id == element_id), None)
+
+
+class DocumentInfo(BaseModel):
+    """Lightweight summary of a stored document returned by MetadataStore lifecycle queries."""
+
+    model_config = {"frozen": True}
+
+    document_id: str
+    source_id: str
+    title: str | None
+    chunk_count: int

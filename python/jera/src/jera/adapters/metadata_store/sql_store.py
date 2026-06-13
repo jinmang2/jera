@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
 from jera.adapters.metadata_store.models import (
@@ -18,7 +18,7 @@ from jera.adapters.metadata_store.models import (
     JobRow,
 )
 from jera.domain.chunk import Chunk
-from jera.domain.document import PageSpan, ParsedDocument
+from jera.domain.document import DocumentInfo, PageSpan, ParsedDocument
 from jera.domain.jobs import IngestionJob, JobStatus, ProviderConfigSnapshot
 
 
@@ -31,6 +31,7 @@ class SqlMetadataStore:
 
     # --- documents ---
     def save_document(self, document: ParsedDocument) -> None:
+        """Upsert a document row."""
         with Session(self._engine) as session:
             session.merge(
                 DocumentRow(
@@ -41,6 +42,89 @@ class SqlMetadataStore:
                 )
             )
             session.commit()
+
+    def list_documents(self) -> list[DocumentInfo]:
+        """Return all documents with their chunk counts, ordered by document_id."""
+        with Session(self._engine) as session:
+            rows = session.execute(
+                select(
+                    DocumentRow.document_id,
+                    DocumentRow.source_id,
+                    DocumentRow.title,
+                    func.count(ChunkRow.chunk_id).label("chunk_count"),
+                )
+                .outerjoin(ChunkRow, ChunkRow.document_id == DocumentRow.document_id)
+                .group_by(DocumentRow.document_id)
+                .order_by(DocumentRow.document_id)
+            ).all()
+            return [
+                DocumentInfo(
+                    document_id=row.document_id,
+                    source_id=row.source_id,
+                    title=row.title,
+                    chunk_count=row.chunk_count,
+                )
+                for row in rows
+            ]
+
+    def get_document_info(self, document_id: str) -> DocumentInfo | None:
+        """Return a single document's info with chunk count, or None if not found."""
+        with Session(self._engine) as session:
+            row = session.execute(
+                select(
+                    DocumentRow.document_id,
+                    DocumentRow.source_id,
+                    DocumentRow.title,
+                    func.count(ChunkRow.chunk_id).label("chunk_count"),
+                )
+                .outerjoin(ChunkRow, ChunkRow.document_id == DocumentRow.document_id)
+                .where(DocumentRow.document_id == document_id)
+                .group_by(DocumentRow.document_id)
+            ).first()
+            if row is None:
+                return None
+            return DocumentInfo(
+                document_id=row.document_id,
+                source_id=row.source_id,
+                title=row.title,
+                chunk_count=row.chunk_count,
+            )
+
+    def delete_document(self, document_id: str) -> list[str]:
+        """Delete the document and all its chunks; return the deleted chunk_ids.
+
+        Idempotent: returns [] if the document_id is unknown.
+        """
+        with Session(self._engine) as session:
+            chunk_ids: list[str] = list(
+                session.scalars(
+                    select(ChunkRow.chunk_id)
+                    .where(ChunkRow.document_id == document_id)
+                    .order_by(ChunkRow.chunk_id)
+                ).all()
+            )
+            session.execute(delete(ChunkRow).where(ChunkRow.document_id == document_id))
+            session.execute(delete(DocumentRow).where(DocumentRow.document_id == document_id))
+            session.commit()
+        return chunk_ids
+
+    def chunk_ids_for_document(self, document_id: str) -> list[str]:
+        """Return ordered chunk_ids belonging to a document."""
+        with Session(self._engine) as session:
+            return list(
+                session.scalars(
+                    select(ChunkRow.chunk_id)
+                    .where(ChunkRow.document_id == document_id)
+                    .order_by(ChunkRow.chunk_id)
+                ).all()
+            )
+
+    def document_id_for_source(self, source_id: str) -> str | None:
+        """Return the document_id currently stored for a source_id, or None."""
+        with Session(self._engine) as session:
+            return session.scalars(
+                select(DocumentRow.document_id).where(DocumentRow.source_id == source_id)
+            ).first()
 
     # --- chunks ---
     def save_chunks(self, chunks: Sequence[Chunk]) -> None:
