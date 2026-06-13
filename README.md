@@ -7,7 +7,7 @@
 *Every external capability is a `Protocol` port with swappable adapters. The whole pipeline
 runs and is tested end-to-end with **zero external services, zero paid keys, zero GPU**.*
 
-`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **751 tests**
+`Python 3.11` · `uv workspace` · `pydantic v2` · `SQLAlchemy 2.0` · `FastAPI` · `ruff + mypy --strict` · **754 tests**
 
 </div>
 
@@ -46,6 +46,7 @@ tested without a running database and an API key. Jera inverts that:
 | **M10** | 2025–26 SOTA (researched) | **late-interaction ColBERT MaxSim** retrieval (multi-vector ports); **Corrective RAG** (retrieval-grader → corrective re-query); **Adaptive-RAG** query-complexity router (skips retrieval when unneeded); **sub-question decomposition** (sequential multi-hop) — all offline-deterministic with non-tautological tests |
 | **M11** | 2025–26 SOTA (researched) | **HippoRAG** PPR graph retrieval (entity graph + pure-Python PageRank, multi-hop); **MRL + int8** two-stage quantized store (rescore-corrected); **listwise** reranking (RankLLM-style, whole-list IDF; Claude permutation opt-in); **late chunking** (context-mixed chunk embeddings, orthogonal to M6) |
 | **M12** | Context quality + eval (researched) | **context-engineering pipeline** — redundancy curation + extractive compression + lost-in-the-middle reorder before generation; **proposition chunking** (atomic units); **iterative multi-turn retrieval** (bridge-following hops); **claim-level eval** (RAGChecker-style: claim precision/recall, noise-sensitivity, citation precision/recall, abstention) |
+| **M13** | Ablation harness | **`AblationRunner`** — score named configurations (baseline / contextual / proposition / multi-query / listwise / context-processing …) on one corpus across retrieval + RAGAS-lite + claim-level metrics; *which technique actually wins, and on what* — answered, not assumed (`scripts/ablation.py`) |
 
 Built with a disciplined loop: **`/deep-interview` → consensus plan (Planner→Architect→Critic) → execution (direct or `/team`) → independent code review.** Plans/specs/QA live in `.omc/`.
 
@@ -77,7 +78,8 @@ apps/api/app/             # FastAPI adapter: routers / DI / schemas
 ```bash
 uv sync                        # install the workspace (both packages, editable)
 bash scripts/gates.sh          # ruff + ruff format + mypy --strict + pytest  (171 passed, offline)
-uv run python scripts/eval.py  # demo eval: retrieval table + RAGAS-lite generation table
+uv run python scripts/eval.py       # demo eval: retrieval table + RAGAS-lite generation table
+uv run python scripts/ablation.py   # compare named configs (baseline vs contextual vs …) side by side
 uv run uvicorn app.main:app --reload --app-dir apps/api   # serve the API
 ```
 

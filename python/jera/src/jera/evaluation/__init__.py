@@ -4,6 +4,13 @@
 package is the runnable machinery on top of them.)
 """
 
+from jera.evaluation.ablation import (
+    AblationCase,
+    AblationConfig,
+    AblationEntry,
+    AblationReport,
+    AblationRunner,
+)
 from jera.evaluation.computation import (
     ComputationCaseResult,
     ComputationEval,
@@ -24,6 +31,11 @@ from jera.evaluation.report import (
 from jera.evaluation.runner import EvalRunner
 
 __all__ = [
+    "AblationCase",
+    "AblationConfig",
+    "AblationEntry",
+    "AblationReport",
+    "AblationRunner",
     "CaseResult",
     "CaseSpec",
     "ClaudeGoldGenerator",
