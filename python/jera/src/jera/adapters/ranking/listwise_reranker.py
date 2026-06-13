@@ -34,16 +34,22 @@ def _content_tokens(text: str) -> list[str]:
 
 
 class ListwiseReranker:
-    """Listwise reranker using query-term coverage weighted by corpus rarity.
+    """Deterministic CI analogue of a listwise LLM reranker — no LLM required.
 
-    A candidate's score is the mean IDF-weighted coverage of *distinct* query
-    content-tokens present in the chunk text.  IDF is computed across the
-    whole candidate set (document frequency = number of candidates whose text
-    contains the token), making the score genuinely listwise: changing the
-    candidate pool changes the per-token weights and therefore the ranking.
+    This is NOT an LLM-based listwise reranker.  It is a deterministic, offline
+    stand-in that exercises the same ``rerank(query, candidates, top_k)`` protocol
+    interface without any model calls.  The real opt-in is
+    :class:`ClaudeListwiseReranker` (RankGPT-style, requires ``enable_cloud=True``
+    + an Anthropic API key).
 
-    Algorithm
-    ---------
+    Algorithm: IDF-weighted query-term coverage
+    -------------------------------------------
+    A candidate's score is the weighted fraction of *distinct* query content-tokens
+    present in the chunk text.  IDF is computed across the whole candidate set
+    (document frequency = number of candidates whose text contains the token),
+    making the score genuinely listwise: changing the candidate pool changes the
+    per-token weights and therefore the ranking.
+
     1. Tokenise the query into a set of distinct content tokens Q.
     2. For each token t in Q compute df(t) = number of candidates whose text
        contains t.  Weight w(t) = 1 / df(t)  (rare tokens score higher).

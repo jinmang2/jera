@@ -2,14 +2,20 @@
 
 Frozen rules (two implementations must produce byte-identical orderings):
   1. Rank is 1-based from each modality's score-sorted ranking (best = rank 1).
-  2. RRF: score = Σ_modalities 1/(k + rank_i), k = 60.
+  2. RRF: score = Σ_modalities 1/(k + rank_i), k = 60 (Cormack et al., SIGIR 2009).
   3. Missing-modality rule: a chunk absent from a modality contributes 0 (explicit, not 1/(k+∞)).
-  4. DBSF: per-modality min-max normalization to [0,1] then sum across modalities; a modality
-     whose scores are all equal contributes 0 (min-max undefined → 0, deterministically).
+  4. DBSF (Distribution-Based Score Fusion): per-modality 3-sigma normalization
+     ``ŝ = (s − (μ − 3σ)) / (6σ)`` using the *sample* standard deviation, then sum across
+     modalities. This mirrors the production Qdrant DBSF path exactly (Qdrant hybrid-queries
+     docs; Mazzeschi 2024). Scores are NOT clamped to [0, 1]. A modality with fewer than two
+     points or zero variance (all scores equal) emits the constant 0.5 per point rather than
+     dividing by zero — matching Qdrant's documented behaviour.
   5. Tie-break: equal fused scores break by chunk_id lexicographic ascending.
 """
 
 from __future__ import annotations
+
+import math
 
 RRF_K = 60
 
@@ -33,15 +39,26 @@ def reciprocal_rank_fusion(
 def distribution_based_score_fusion(
     scores_by_modality: dict[str, dict[str, float]],
 ) -> list[tuple[str, float]]:
-    """Fuse per-modality {chunk_id: raw_score} maps via min-max + sum. Rules 3-4."""
+    """Fuse per-modality {chunk_id: raw_score} maps via 3-sigma normalization + sum. Rules 3-4.
+
+    Canonical Qdrant DBSF: ``ŝ = (s − (μ − 3σ)) / (6σ)`` with the *sample* standard deviation
+    σ. Scores are not clamped. A modality with < 2 points or zero variance emits 0.5 per point
+    (Qdrant's divide-by-zero guard). Missing chunks contribute 0 to the fused sum (rule 3).
+    """
     fused: dict[str, float] = {}
     for smap in scores_by_modality.values():
         if not smap:
             continue
-        values = smap.values()
-        lo, hi = min(values), max(values)
-        rng = hi - lo
+        values = list(smap.values())
+        n = len(values)
+        mean = sum(values) / n
+        # Sample standard deviation (ddof=1), matching Qdrant's DBSF.
+        variance = sum((v - mean) ** 2 for v in values) / (n - 1) if n > 1 else 0.0
+        sigma = math.sqrt(variance)
+        lo = mean - 3.0 * sigma
+        denom = 6.0 * sigma
         for chunk_id, s in smap.items():
-            norm = 0.0 if rng == 0 else (s - lo) / rng  # rule 4
+            # Zero variance / single point -> 0.5 (rule 4 divide-by-zero guard).
+            norm = 0.5 if denom == 0.0 else (s - lo) / denom
             fused[chunk_id] = fused.get(chunk_id, 0.0) + norm  # rule 3: missing contributes 0
     return _finalize(fused)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-AS_OF = "2026-01"
+AS_OF = "2026-06"
 CURRENCY = "USD"
 
 
@@ -44,13 +44,18 @@ _FREE = ModelPricing(free_local=True)
 # Keyed by the exact ``model_id`` each adapter reports.
 PRICES: dict[str, ModelPricing] = {
     # --- Anthropic (input / output per MTok) ---
-    "claude-opus-4-8": ModelPricing(input_per_mtok=15.0, output_per_mtok=75.0),
+    # Source: https://platform.claude.com/docs/en/docs/about-claude/models (verified 2026-06)
+    # claude-opus-4-8: $5/$25 — NOT $15/$75 (those were deprecated claude-opus-4-1/4-0)
+    "claude-opus-4-8": ModelPricing(input_per_mtok=5.0, output_per_mtok=25.0),
     "claude-sonnet-4-6": ModelPricing(input_per_mtok=3.0, output_per_mtok=15.0),
     "claude-haiku-4-5-20251001": ModelPricing(input_per_mtok=1.0, output_per_mtok=5.0),
     # --- OpenAI embeddings (input per MTok) ---
+    # Source: developers.openai.com/api/docs/models/text-embedding-3-{small,large} (2026-06)
     "text-embedding-3-small": ModelPricing(input_per_mtok=0.02),
     "text-embedding-3-large": ModelPricing(input_per_mtok=0.13),
     # --- Cohere rerank (per 1K searches) ---
+    # Source: cohere.com/pricing — per-search rate not publicly listed at 2026-06;
+    # $2.00/1k is a previously published indicative rate (treat as approximate).
     "rerank-v3.5": ModelPricing(per_1k_searches=2.0),
 }
 

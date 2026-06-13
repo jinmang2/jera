@@ -33,7 +33,9 @@ class QdrantVectorStore:
         distance = (
             models.Distance.COSINE if spec.distance is Distance.COSINE else models.Distance.DOT
         )
-        self._client.recreate_collection(
+        if self._client.collection_exists(spec.name):
+            self._client.delete_collection(spec.name)
+        self._client.create_collection(
             collection_name=spec.name,
             vectors_config={"dense": models.VectorParams(size=spec.dense_dim, distance=distance)},
             sparse_vectors_config=(

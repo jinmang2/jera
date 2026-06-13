@@ -142,7 +142,13 @@ def _install_qdrant_fake(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]
         def __init__(self, url: str, api_key: Any = None) -> None:
             pass
 
-        def recreate_collection(self, **kwargs: Any) -> None:
+        def collection_exists(self, collection_name: str) -> bool:
+            return False
+
+        def delete_collection(self, collection_name: str) -> None:
+            pass
+
+        def create_collection(self, **kwargs: Any) -> None:
             pass
 
         def upsert(self, **kwargs: Any) -> None:

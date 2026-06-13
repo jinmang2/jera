@@ -250,7 +250,7 @@ class _QdrantFakes:
     def make(
         monkeypatch: pytest.MonkeyPatch,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-        recreate_calls: list[dict[str, Any]] = []
+        create_calls: list[dict[str, Any]] = []
         upsert_calls: list[dict[str, Any]] = []
         query_calls: list[dict[str, Any]] = []
 
@@ -298,8 +298,14 @@ class _QdrantFakes:
             def __init__(self, url: str, api_key: Any = None) -> None:
                 self.url = url
 
-            def recreate_collection(self, **kwargs: Any) -> None:
-                recreate_calls.append(kwargs)
+            def collection_exists(self, collection_name: str) -> bool:
+                return False
+
+            def delete_collection(self, collection_name: str) -> None:
+                pass
+
+            def create_collection(self, **kwargs: Any) -> None:
+                create_calls.append(kwargs)
 
             def upsert(self, **kwargs: Any) -> None:
                 upsert_calls.append(kwargs)
@@ -316,7 +322,7 @@ class _QdrantFakes:
         monkeypatch.setitem(sys.modules, "qdrant_client", qdrant_mod)
         monkeypatch.setitem(sys.modules, "qdrant_client.models", _FakeModels)  # type: ignore[arg-type]
 
-        return recreate_calls, upsert_calls, query_calls
+        return create_calls, upsert_calls, query_calls
 
 
 class TestQdrantVectorStore:
@@ -329,10 +335,10 @@ class TestQdrantVectorStore:
 
     # --- ensure_collection ---
 
-    def test_ensure_collection_calls_recreate_with_correct_spec(
+    def test_ensure_collection_calls_create_with_correct_spec(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        recreate_calls, _, _ = _QdrantFakes.make(monkeypatch)
+        create_calls, _, _ = _QdrantFakes.make(monkeypatch)
         store = self._make_store()
         spec = CollectionSpec(
             name="test_col",
@@ -341,8 +347,8 @@ class TestQdrantVectorStore:
             has_sparse=True,
         )
         store.ensure_collection(spec)
-        assert len(recreate_calls) == 1
-        call = recreate_calls[0]
+        assert len(create_calls) == 1
+        call = create_calls[0]
         assert call["collection_name"] == "test_col"
         vp = call["vectors_config"]["dense"]
         assert vp.size == 384
@@ -352,18 +358,18 @@ class TestQdrantVectorStore:
     def test_ensure_collection_no_sparse_when_disabled(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        recreate_calls, _, _ = _QdrantFakes.make(monkeypatch)
+        create_calls, _, _ = _QdrantFakes.make(monkeypatch)
         store = self._make_store()
         spec = CollectionSpec(name="c", dense_dim=128, has_sparse=False)
         store.ensure_collection(spec)
-        assert recreate_calls[0]["sparse_vectors_config"] is None
+        assert create_calls[0]["sparse_vectors_config"] is None
 
     def test_ensure_collection_dot_distance(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        recreate_calls, _, _ = _QdrantFakes.make(monkeypatch)
+        create_calls, _, _ = _QdrantFakes.make(monkeypatch)
         store = self._make_store()
         spec = CollectionSpec(name="c", dense_dim=128, distance=Distance.DOT)
         store.ensure_collection(spec)
-        vp = recreate_calls[0]["vectors_config"]["dense"]
+        vp = create_calls[0]["vectors_config"]["dense"]
         assert vp.distance == "Dot"
 
     # --- upsert ---
